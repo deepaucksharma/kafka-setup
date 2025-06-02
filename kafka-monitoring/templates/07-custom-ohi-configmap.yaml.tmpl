@@ -1,0 +1,232 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-ohi-sharegroup
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  sharegroup-ohi-definition.yaml: |
+    integrations:
+    - name: com.example.kafka.sharegroup
+      env:
+        PROMETHEUS_ENDPOINT: "http://kafka-0.kafka:9404/metrics"
+        OHI_ENTITY_NAME: "kafka-sharegroup-ohi"
+        OHI_INTEGRATION_VERSION: "1.0.0"
+        OHI_PROTOCOL_VERSION: "3"
+        CLUSTER_NAME: "${KAFKA_CLUSTER_NAME}"
+      interval: 30
+  sharegroup-ohi.py: |
+    #!/usr/bin/env python3
+    """
+    Custom OHI for Kafka Share Groups
+    Converts Share Group metrics to QueueSample events for New Relic Queues & Streams UI
+    """
+    import json
+    import requests
+    import sys
+    import time
+    import os
+    from datetime import datetime
+    from urllib.parse import urlparse
+    
+    # Configuration
+    PROMETHEUS_ENDPOINT = os.environ.get('PROMETHEUS_ENDPOINT', 'http://kafka-0.kafka:9404/metrics')
+    ENTITY_NAME = os.environ.get('OHI_ENTITY_NAME', 'kafka-sharegroup-ohi')
+    INTEGRATION_VERSION = os.environ.get('OHI_INTEGRATION_VERSION', '1.0.0')
+    PROTOCOL_VERSION = os.environ.get('OHI_PROTOCOL_VERSION', '3')
+    CLUSTER_NAME = os.environ.get('CLUSTER_NAME', '${KAFKA_CLUSTER_NAME}')
+    
+    def parse_prometheus_metrics(text):
+        """Parse Prometheus text format into metrics dict"""
+        metrics = {}
+        for line in text.strip().split('\n'):
+            if line.startswith('#') or not line:
+                continue
+            
+            try:
+                # Split metric name and labels from value
+                parts = line.split(' ')
+                if len(parts) != 2:
+                    continue
+                
+                metric_part = parts[0]
+                value = float(parts[1])
+                
+                # Parse metric name and labels
+                if '{' in metric_part:
+                    metric_name = metric_part[:metric_part.index('{')]
+                    labels_str = metric_part[metric_part.index('{')+1:metric_part.index('}')]
+                    labels = {}
+                    for label in labels_str.split(','):
+                        if '=' in label:
+                            k, v = label.split('=', 1)
+                            labels[k] = v.strip('"')
+                else:
+                    metric_name = metric_part
+                    labels = {}
+                
+                if metric_name not in metrics:
+                    metrics[metric_name] = []
+                
+                metrics[metric_name].append({
+                    'labels': labels,
+                    'value': value
+                })
+            except Exception as e:
+                # Skip malformed lines
+                continue
+        
+        return metrics
+    
+    def fetch_sharegroup_metrics():
+        """Fetch Share Group metrics from Prometheus endpoint"""
+        try:
+            response = requests.get(PROMETHEUS_ENDPOINT, timeout=10)
+            response.raise_for_status()
+            return parse_prometheus_metrics(response.text)
+        except Exception as e:
+            print(f"Error fetching metrics: {e}", file=sys.stderr)
+            return {}
+    
+    def create_queue_samples(metrics):
+        """Convert Share Group metrics to QueueSample events"""
+        queue_samples = []
+        
+        # Group metrics by share group and topic-partition
+        grouped_metrics = {}
+        
+        for metric_name, values in metrics.items():
+            if 'sharegroup' not in metric_name:
+                continue
+            
+            for metric in values:
+                labels = metric['labels']
+                group = labels.get('group', 'unknown')
+                topic = labels.get('topic', 'unknown')
+                partition = labels.get('partition', 'unknown')
+                
+                key = f"{group}:{topic}:{partition}"
+                if key not in grouped_metrics:
+                    grouped_metrics[key] = {
+                        'group': group,
+                        'topic': topic,
+                        'partition': partition,
+                        'metrics': {}
+                    }
+                
+                # Map metric names to queue sample attributes
+                if 'records_unacked' in metric_name:
+                    grouped_metrics[key]['metrics']['queue.size'] = metric['value']
+                elif 'oldest_unacked_ms' in metric_name:
+                    grouped_metrics[key]['metrics']['oldest.message.age.seconds'] = metric['value'] / 1000.0
+                elif 'records_acknowledged' in metric_name:
+                    grouped_metrics[key]['metrics']['messages.acknowledged'] = metric['value']
+                elif 'records_released' in metric_name:
+                    grouped_metrics[key]['metrics']['messages.released'] = metric['value']
+                elif 'records_rejected' in metric_name:
+                    grouped_metrics[key]['metrics']['messages.rejected'] = metric['value']
+        
+        # Create QueueSample events
+        for key, data in grouped_metrics.items():
+            queue_sample = {
+                'eventType': 'QueueSample',
+                'provider': 'kafka',
+                'entityName': f"queue:kafka/{data['topic']}-{data['partition']}",
+                'displayName': f"{data['topic']}-{data['partition']}",
+                'queue.name': f"{data['topic']}-{data['partition']}",
+                'share.group.name': data['group'],
+                'topic': data['topic'],
+                'partition': data['partition'],
+                'cluster': CLUSTER_NAME,
+                'timestamp': int(time.time())
+            }
+            
+            # Add all metrics
+            queue_sample.update(data['metrics'])
+            
+            # Ensure required fields have defaults
+            queue_sample.setdefault('queue.size', 0)
+            queue_sample.setdefault('oldest.message.age.seconds', 0)
+            queue_sample.setdefault('messages.acknowledged', 0)
+            queue_sample.setdefault('messages.released', 0)
+            queue_sample.setdefault('messages.rejected', 0)
+            
+            queue_samples.append(queue_sample)
+        
+        # Also create aggregate samples per topic
+        topic_aggregates = {}
+        for sample in queue_samples:
+            topic = sample['topic']
+            group = sample['share.group.name']
+            key = f"{group}:{topic}"
+            
+            if key not in topic_aggregates:
+                topic_aggregates[key] = {
+                    'eventType': 'QueueSample',
+                    'provider': 'kafka',
+                    'entityName': f"queue:kafka/{topic}",
+                    'displayName': topic,
+                    'queue.name': topic,
+                    'share.group.name': group,
+                    'topic': topic,
+                    'cluster': CLUSTER_NAME,
+                    'queue.size': 0,
+                    'oldest.message.age.seconds': 0,
+                    'messages.acknowledged': 0,
+                    'messages.released': 0,
+                    'messages.rejected': 0,
+                    'timestamp': int(time.time())
+                }
+            
+            # Sum up metrics
+            topic_aggregates[key]['queue.size'] += sample.get('queue.size', 0)
+            topic_aggregates[key]['messages.acknowledged'] += sample.get('messages.acknowledged', 0)
+            topic_aggregates[key]['messages.released'] += sample.get('messages.released', 0)
+            topic_aggregates[key]['messages.rejected'] += sample.get('messages.rejected', 0)
+            
+            # Use max for oldest message age
+            topic_aggregates[key]['oldest.message.age.seconds'] = max(
+                topic_aggregates[key]['oldest.message.age.seconds'],
+                sample.get('oldest.message.age.seconds', 0)
+            )
+        
+        queue_samples.extend(list(topic_aggregates.values()))
+        
+        return queue_samples
+    
+    def main():
+        """Main function for OHI"""
+        try:
+            # Fetch metrics
+            metrics = fetch_sharegroup_metrics()
+            
+            # Create queue samples
+            queue_samples = create_queue_samples(metrics)
+            
+            # Format output for New Relic Infrastructure
+            output = {
+                'name': 'com.example.kafka.sharegroup',
+                'protocol_version': PROTOCOL_VERSION,
+                'integration_version': INTEGRATION_VERSION,
+                'data': [{
+                    'entity': {
+                        'name': ENTITY_NAME,
+                        'type': 'kafka-sharegroup',
+                        'id_attributes': [
+                            {'key': 'cluster', 'value': CLUSTER_NAME}
+                        ]
+                    },
+                    'metrics': queue_samples,
+                    'inventory': {},
+                    'events': []
+                }]
+            }
+            
+            # Output JSON to stdout
+            print(json.dumps(output))
+            
+        except Exception as e:
+            print(f"Error in main: {e}", file=sys.stderr)
+            sys.exit(1)
+    
+    if __name__ == '__main__':
+        main()

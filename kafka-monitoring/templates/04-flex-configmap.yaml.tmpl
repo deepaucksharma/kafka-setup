@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: newrelic-flex-config
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  kafka-sharegroup-flex.yml: |
+    integrations:
+      - name: nri-flex
+        config:
+          name: KafkaShareGroupMonitor
+          apis:
+            # Scrape Prometheus metrics from JMX Exporter
+            - name: ShareGroupMetrics
+              url: http://kafka-0.kafka:9404/metrics
+              prometheus:
+                enable: true
+              metric_parser:
+                metrics:
+                  # Share Group unacked records
+                  - metric_name: kafka_sharegroup_records_unacked
+                    metric_type: gauge
+                  # Share Group oldest unacked message age
+                  - metric_name: kafka_sharegroup_oldest_unacked_ms
+                    metric_type: gauge
+                  # Share Group acknowledged records
+                  - metric_name: kafka_sharegroup_records_acknowledged
+                    metric_type: counter
+                  # Share Group released records
+                  - metric_name: kafka_sharegroup_records_released
+                    metric_type: counter
+                  # Share Group rejected records
+                  - metric_name: kafka_sharegroup_records_rejected
+                    metric_type: counter
+              custom_attributes:
+                environment: kubernetes
+                cluster: ${KAFKA_CLUSTER_NAME}
+                integration: sharegroup-monitoring
+  
+  # Alternative: Direct JMX query configuration
+  kafka-sharegroup-jmx-flex.yml: |
+    integrations:
+      - name: nri-flex
+        config:
+          name: KafkaShareGroupJMX
+          apis:
+            - name: ShareGroupJMX
+              commands:
+                - run: |
+                    java -jar /opt/jmxterm/jmxterm.jar -l kafka-0.kafka:9999 -n <<EOF
+                    domain kafka.server
+                    bean kafka.server:type=share-group-metrics,*
+                    get RecordsUnacked OldestUnackedMessageAgeMs
+                    EOF
+              custom_attributes:
+                provider: kafka
+                integration: sharegroup-jmx

@@ -1,0 +1,81 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# API Keys and secrets
+**/secrets/
+**/credentials/
+*.key
+*.pem
+*.cert
+
+# New Relic specific
+newrelic.js
+newrelic_agent.log
+nr-security-*.log
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build outputs
+dist/
+build/
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Generated files
+generated/
+dashboard-result.json
+generated-dashboard-result.json
+
+# Backup files
+*.backup
+*.bak
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Kubernetes generated configs
+kafka-monitoring/generated/
+
+# Local test data
+test-output/

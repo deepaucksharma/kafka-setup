@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workload-generator
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  generate-load.sh: |
+    #!/bin/bash
+    # Generate various workload patterns to test monitoring
+    
+    echo "Starting workload generator..."
+    
+    # Normal load
+    echo "Phase 1: Normal load (100 messages)"
+    for i in {1..100}; do
+      echo "Normal message $i" | kafka-console-producer \
+        --bootstrap-server kafka-0.kafka:${KAFKA_BROKER_PORT} \
+        --topic ${SHARE_GROUP_TOPIC}
+      sleep 0.1
+    done
+    
+    # Burst load
+    echo "Phase 2: Burst load (500 messages)"
+    for i in {1..500}; do
+      echo "Burst message $i" | kafka-console-producer \
+        --bootstrap-server kafka-0.kafka:${KAFKA_BROKER_PORT} \
+        --topic ${SHARE_GROUP_TOPIC}
+    done
+    
+    # Slow messages (simulated by large payload)
+    echo "Phase 3: Slow messages (10 large messages)"
+    for i in {1..10}; do
+      # Generate 1MB message
+      dd if=/dev/urandom bs=1024 count=1024 2>/dev/null | base64 | \
+        kafka-console-producer \
+        --bootstrap-server kafka-0.kafka:${KAFKA_BROKER_PORT} \
+        --topic ${SHARE_GROUP_TOPIC}
+      sleep 1
+    done
+    
+    echo "Workload generation complete"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: workload-generator
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: generator
+        image: confluentinc/cp-kafka:${KAFKA_VERSION}
+        command: ["/bin/bash", "/scripts/generate-load.sh"]
+        envFrom:
+        - configMapRef:
+            name: kafka-env-config
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+      volumes:
+      - name: script
+        configMap:
+          name: workload-generator

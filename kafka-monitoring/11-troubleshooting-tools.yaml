@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: troubleshooting-scripts
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  check-metrics.sh: |
+    #!/bin/bash
+    echo "=== Checking Kafka Share Group Metrics ==="
+    
+    # Check Prometheus endpoint
+    echo "1. Prometheus metrics endpoint:"
+    curl -s ${PROMETHEUS_ENDPOINT} | grep kafka_sharegroup | head -20
+    
+    # Check JMX directly
+    echo -e "\n2. Direct JMX query:"
+    echo "domain kafka.server
+    bean kafka.server:type=share-group-metrics,*
+    get RecordsUnacked" | java -jar /opt/jmxterm/jmxterm.jar -l kafka-0.kafka:9999 -n
+    
+    # Check New Relic events
+    echo -e "\n3. Recent QueueSample events:"
+    # This would require NRQL query via API
+    
+  validate-ohi.sh: |
+    #!/bin/bash
+    echo "=== Validating Custom OHI ==="
+    
+    # Test OHI script directly
+    echo "1. Testing OHI script output:"
+    /scripts/run-ohi.sh | jq .
+    
+    # Check New Relic agent logs
+    echo -e "\n2. Checking agent logs for OHI execution:"
+    grep -i "kafka-sharegroup" /var/log/newrelic-infra/newrelic-infra.log | tail -20
+    
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: troubleshooting-pod
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  containers:
+  - name: tools
+    image: ubuntu:22.04
+    command: ["/bin/sleep", "3600"]
+    volumeMounts:
+    - name: scripts
+      mountPath: /scripts
+  volumes:
+  - name: scripts
+    configMap:
+      name: troubleshooting-scripts
+      defaultMode: 0755

@@ -1,0 +1,26 @@
+# kind configuration for Kafka monitoring setup
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kafka-monitoring
+nodes:
+- role: control-plane
+  # Port mappings for easy access
+  extraPortMappings:
+  - containerPort: 30092  # Kafka broker
+    hostPort: 9092
+    protocol: TCP
+  - containerPort: 30404  # Prometheus metrics
+    hostPort: 9404
+    protocol: TCP
+  - containerPort: 30999  # JMX
+    hostPort: 9999
+    protocol: TCP
+  # Extra mounts for persistence
+  extraMounts:
+  - hostPath: ./data
+    containerPath: /data
+- role: worker
+  # Add worker node for better resource distribution
+  extraMounts:
+  - hostPath: ./data
+    containerPath: /data

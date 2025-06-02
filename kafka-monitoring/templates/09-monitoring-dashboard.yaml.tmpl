@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: newrelic-dashboards
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  kafka-sharegroup-dashboard.json: |
+    {
+      "name": "Kafka Share Groups Monitoring - ${KAFKA_CLUSTER_NAME}",
+      "pages": [
+        {
+          "name": "Share Group Overview",
+          "widgets": [
+            {
+              "title": "Total Unacknowledged Messages",
+              "nrql": "SELECT sum(queue.size) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name TIMESERIES AUTO"
+            },
+            {
+              "title": "Oldest Unacked Message Age",
+              "nrql": "SELECT max(oldest.message.age.seconds) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name, topic.name TIMESERIES AUTO"
+            },
+            {
+              "title": "Message Processing Rate",
+              "nrql": "SELECT rate(sum(messages.acknowledged), 1 minute) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name TIMESERIES AUTO"
+            },
+            {
+              "title": "Share Group Health Score",
+              "nrql": "SELECT 100 - (average(queue.size) / 100) as 'Health Score' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name"
+            }
+          ]
+        },
+        {
+          "name": "Comparison: Traditional vs Share Groups",
+          "widgets": [
+            {
+              "title": "Traditional Consumer Lag",
+              "nrql": "SELECT latest(consumer.lag) FROM KafkaBrokerSample WHERE clusterName = '${KAFKA_CLUSTER_NAME}' FACET consumer.group.name TIMESERIES AUTO"
+            },
+            {
+              "title": "Share Group Backlog",
+              "nrql": "SELECT latest(queue.size) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name TIMESERIES AUTO"
+            },
+            {
+              "title": "Zero Lag Fallacy Detection",
+              "nrql": "SELECT latest(consumer.lag) as 'Traditional Lag', latest(queue.size) as 'Actual Unacked' FROM KafkaBrokerSample, QueueSample WHERE consumer.group.name = share.group.name AND clusterName = '${KAFKA_CLUSTER_NAME}' FACET consumer.group.name SINCE 1 hour ago"
+            }
+          ]
+        }
+      ]
+    }
+
+  alert-policies.json: |
+    {
+      "policies": [
+        {
+          "name": "Kafka Share Group Alerts - ${KAFKA_CLUSTER_NAME}",
+          "conditions": [
+            {
+              "name": "High Unacknowledged Messages",
+              "nrql": "SELECT sum(queue.size) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name",
+              "threshold": {
+                "critical": 1000,
+                "warning": 500,
+                "duration": 300
+              }
+            },
+            {
+              "name": "Old Unacked Messages",
+              "nrql": "SELECT max(oldest.message.age.seconds) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name",
+              "threshold": {
+                "critical": 300,
+                "warning": 120,
+                "duration": 180
+              }
+            },
+            {
+              "name": "Message Processing Stalled",
+              "nrql": "SELECT rate(sum(messages.acknowledged), 1 minute) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name",
+              "threshold": {
+                "critical": 0,
+                "duration": 300,
+                "operator": "below"
+              }
+            }
+          ]
+        }
+      ]
+    }

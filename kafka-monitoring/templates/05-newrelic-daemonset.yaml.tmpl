@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: newrelic-license
+  namespace: ${KAFKA_NAMESPACE}
+type: Opaque
+stringData:
+  license: "${NEW_RELIC_LICENSE_KEY}"
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: newrelic-infrastructure
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  selector:
+    matchLabels:
+      app: newrelic-infrastructure
+  template:
+    metadata:
+      labels:
+        app: newrelic-infrastructure
+    spec:
+      serviceAccountName: newrelic-infrastructure
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: newrelic-infrastructure
+        image: newrelic/infrastructure-k8s:${NEWRELIC_INFRA_VERSION}
+        securityContext:
+          privileged: true
+        env:
+        - name: NRIA_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: newrelic-license
+              key: license
+        - name: CLUSTER_NAME
+          value: "${NEW_RELIC_CLUSTER_NAME}"
+        - name: NRIA_VERBOSE
+          value: "${NRIA_VERBOSE}"
+        - name: NRIA_PROMETHEUS_INTEGRATIONS_SOURCE_ENABLED
+          value: "true"
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+          readOnly: true
+        - name: nri-kafka-config
+          mountPath: /var/db/newrelic-infra/integrations.d/kafka-config.yml
+          subPath: nri-kafka-config.yml
+        - name: nri-flex-config
+          mountPath: /var/db/newrelic-infra/integrations.d/kafka-sharegroup-flex.yml
+          subPath: kafka-sharegroup-flex.yml
+        - name: custom-ohi-definition
+          mountPath: /var/db/newrelic-infra/integrations.d/sharegroup-ohi-definition.yaml
+          subPath: sharegroup-ohi-definition.yaml
+        - name: custom-ohi-script
+          mountPath: /var/db/newrelic-infra/custom-integrations/sharegroup-ohi.py
+          subPath: sharegroup-ohi.py
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+      - name: nri-kafka-config
+        configMap:
+          name: newrelic-config
+      - name: nri-flex-config
+        configMap:
+          name: newrelic-flex-config
+      - name: custom-ohi-definition
+        configMap:
+          name: custom-ohi-sharegroup
+          items:
+          - key: sharegroup-ohi-definition.yaml
+            path: sharegroup-ohi-definition.yaml
+      - name: custom-ohi-script
+        configMap:
+          name: custom-ohi-sharegroup
+          defaultMode: 0755
+          items:
+          - key: sharegroup-ohi.py
+            path: sharegroup-ohi.py
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: newrelic-infrastructure
+  namespace: ${KAFKA_NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: newrelic-infrastructure
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/metrics
+  - nodes/stats
+  - nodes/proxy
+  - pods
+  - services
+  - secrets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: newrelic-infrastructure
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: newrelic-infrastructure
+subjects:
+- kind: ServiceAccount
+  name: newrelic-infrastructure
+  namespace: ${KAFKA_NAMESPACE}

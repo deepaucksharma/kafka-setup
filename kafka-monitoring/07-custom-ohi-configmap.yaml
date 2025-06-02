@@ -1,0 +1,279 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-ohi-scripts
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  kafka-sharegroup-ohi.py: |
+    #!/usr/bin/env python3
+    """
+    Custom OHI for Kafka Share Groups
+    Converts Share Group metrics to QueueSample events for New Relic Queues & Streams UI
+    """
+    import json
+    import requests
+    import sys
+    import time
+    import os
+    from datetime import datetime
+    from urllib.parse import urlparse
+    
+    # Configuration
+    PROMETHEUS_ENDPOINT = os.environ.get('PROMETHEUS_ENDPOINT', 'http://kafka-0.kafka:9404/metrics')
+    ENTITY_NAME = os.environ.get('OHI_ENTITY_NAME', 'kafka-sharegroup-ohi')
+    INTEGRATION_VERSION = os.environ.get('OHI_INTEGRATION_VERSION', '1.0.0')
+    PROTOCOL_VERSION = os.environ.get('OHI_PROTOCOL_VERSION', '3')
+    
+    def parse_prometheus_metrics(text):
+        """Parse Prometheus text format into metrics dict"""
+        metrics = {}
+        for line in text.strip().split('\n'):
+            if line.startswith('#') or not line:
+                continue
+            
+            # Parse metric line: metric_name{labels} value
+            if '{' in line:
+                metric_part, value = line.rsplit(' ', 1)
+                metric_name = metric_part.split('{')[0]
+                labels_str = metric_part.split('{')[1].rstrip('}')
+                
+                # Parse labels
+                labels = {}
+                for label in labels_str.split(','):
+                    if '=' in label:
+                        k, v = label.split('=', 1)
+                        labels[k] = v.strip('"')
+                
+                if metric_name not in metrics:
+                    metrics[metric_name] = []
+                
+                metrics[metric_name].append({
+                    'labels': labels,
+                    'value': float(value)
+                })
+        
+        return metrics
+    
+    def create_queue_sample_event(group, topic, partition, metrics_data):
+        """Create a QueueSample event for New Relic"""
+        
+        # Find metrics for this specific group/topic/partition
+        records_unacked = 0
+        oldest_unacked_ms = 0
+        records_acked = 0
+        records_released = 0
+        records_rejected = 0
+        
+        # Get unacked records
+        for metric in metrics_data.get('kafka_sharegroup_records_unacked', []):
+            if (metric['labels'].get('group') == group and 
+                metric['labels'].get('topic') == topic and 
+                metric['labels'].get('partition') == partition):
+                records_unacked = metric['value']
+                break
+        
+        # Get oldest unacked age
+        for metric in metrics_data.get('kafka_sharegroup_oldest_unacked_ms', []):
+            if (metric['labels'].get('group') == group and 
+                metric['labels'].get('topic') == topic and 
+                metric['labels'].get('partition') == partition):
+                oldest_unacked_ms = metric['value']
+                break
+        
+        # Get acknowledged count
+        for metric in metrics_data.get('kafka_sharegroup_records_acknowledged', []):
+            if (metric['labels'].get('group') == group and 
+                metric['labels'].get('topic') == topic and 
+                metric['labels'].get('partition') == partition):
+                records_acked = metric['value']
+                break
+        
+        # Create QueueSample event
+        event = {
+            "eventType": "QueueSample",
+            "timestamp": int(time.time()),
+            
+            # Standard queue attributes
+            "provider": "kafka",
+            "queue.name": f"{topic}-{partition}",
+            "entityName": f"kafka:sharegroup:{group}:{topic}:{partition}",
+            
+            # Share Group specific attributes
+            "share.group.name": group,
+            "topic.name": topic,
+            "partition.id": int(partition),
+            
+            # Metrics
+            "queue.size": int(records_unacked),  # Maps to unacked records
+            "oldest.message.age.seconds": float(oldest_unacked_ms / 1000),
+            "messages.received": int(records_acked + records_unacked),  # Total delivered
+            "messages.acknowledged": int(records_acked),
+            "messages.released": int(records_released),
+            "messages.rejected": int(records_rejected),
+            
+            # Additional metadata
+            "cluster.name": "${KAFKA_CLUSTER_NAME}",
+            "integration.name": "${OHI_ENTITY_NAME}",
+            "integration.version": "${OHI_INTEGRATION_VERSION}"
+        }
+        
+        # Add consumer count if available
+        # In a real implementation, you might query this from Kafka admin API
+        event["consumer.count"] = 2  # Placeholder
+        
+        # Calculate derived metrics
+        if records_acked > 0:
+            event["processing.rate"] = records_acked / 60  # msgs/sec over last minute
+        
+        return event
+    
+    def get_share_groups_from_metrics(metrics_data):
+        """Extract unique group/topic/partition combinations from metrics"""
+        combinations = set()
+        
+        # Look for any sharegroup metric to find all combinations
+        for metric_name in ['kafka_sharegroup_records_unacked', 
+                           'kafka_sharegroup_records_acknowledged']:
+            for metric in metrics_data.get(metric_name, []):
+                labels = metric['labels']
+                if all(k in labels for k in ['group', 'topic', 'partition']):
+                    combinations.add((
+                        labels['group'],
+                        labels['topic'],
+                        labels['partition']
+                    ))
+        
+        return combinations
+    
+    def main():
+        """Main execution loop"""
+        try:
+            # Fetch metrics from Prometheus endpoint
+            response = requests.get(PROMETHEUS_ENDPOINT, timeout=10)
+            response.raise_for_status()
+            
+            # Parse metrics
+            metrics_data = parse_prometheus_metrics(response.text)
+            
+            # Get all share group combinations
+            combinations = get_share_groups_from_metrics(metrics_data)
+            
+            # Create QueueSample events
+            events = []
+            for group, topic, partition in combinations:
+                event = create_queue_sample_event(group, topic, partition, metrics_data)
+                events.append(event)
+            
+            # Also create aggregate events per topic
+            topic_aggregates = {}
+            for event in events:
+                topic = event['topic.name']
+                group = event['share.group.name']
+                key = f"{group}:{topic}"
+                
+                if key not in topic_aggregates:
+                    topic_aggregates[key] = {
+                        "eventType": "QueueSample",
+                        "timestamp": event['timestamp'],
+                        "provider": "kafka",
+                        "queue.name": topic,
+                        "entityName": f"kafka:sharegroup:{group}:{topic}",
+                        "share.group.name": group,
+                        "topic.name": topic,
+                        "queue.size": 0,
+                        "oldest.message.age.seconds": 0,
+                        "messages.acknowledged": 0,
+                        "partition.count": 0,
+                        "cluster.name": event['cluster.name'],
+                        "integration.name": event['integration.name'],
+                        "integration.version": event['integration.version']
+                    }
+                
+                # Aggregate metrics
+                agg = topic_aggregates[key]
+                agg['queue.size'] += event['queue.size']
+                agg['messages.acknowledged'] += event['messages.acknowledged']
+                agg['oldest.message.age.seconds'] = max(
+                    agg['oldest.message.age.seconds'], 
+                    event['oldest.message.age.seconds']
+                )
+                agg['partition.count'] += 1
+            
+            # Add aggregates to events
+            events.extend(topic_aggregates.values())
+            
+            # Output events in New Relic format
+            output = {
+                "name": ENTITY_NAME,
+                "integration_version": INTEGRATION_VERSION,
+                "protocol_version": PROTOCOL_VERSION,
+                "data": [{
+                    "entity": {
+                        "name": ENTITY_NAME,
+                        "type": "kafka-sharegroup"
+                    },
+                    "metrics": events,
+                    "inventory": {
+                        "sharegroups": {
+                            "count": len(combinations),
+                            "groups": list(set(g for g, _, _ in combinations))
+                        }
+                    },
+                    "events": []
+                }]
+            }
+            
+            print(json.dumps(output))
+            
+        except Exception as e:
+            error_output = {
+                "name": ENTITY_NAME,
+                "integration_version": INTEGRATION_VERSION,
+                "protocol_version": PROTOCOL_VERSION,
+                "data": [{
+                    "entity": {
+                        "name": ENTITY_NAME,
+                        "type": "kafka-sharegroup"
+                    },
+                    "metrics": [],
+                    "inventory": {},
+                    "events": [{
+                        "eventType": "IntegrationError",
+                        "message": str(e),
+                        "timestamp": int(time.time())
+                    }]
+                }]
+            }
+            print(json.dumps(error_output))
+            sys.exit(1)
+    
+    if __name__ == "__main__":
+        main()
+
+  # Wrapper script to handle requirements
+  run-ohi.sh: |
+    #!/bin/bash
+    # Install dependencies if needed
+    if ! python3 -c "import requests" 2>/dev/null; then
+        pip3 install requests --quiet
+    fi
+    
+    # Run the OHI script
+    python3 /scripts/kafka-sharegroup-ohi.py
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-ohi-definition
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  kafka-sharegroup-definition.yml: |
+    name: com.newrelic.kafka-sharegroup
+    description: Kafka Share Group monitoring for Queues & Streams UI
+    protocol_version: 3
+    os: linux
+    commands:
+      all_data:
+        command:
+          - /scripts/run-ohi.sh
+        interval: 30

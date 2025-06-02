@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-jmx-exporter-config
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  kafka-jmx-exporter.yaml: |
+    startDelaySeconds: 0
+    ssl: false
+    lowercaseOutputName: false
+    lowercaseOutputLabelNames: false
+    rules:
+    # Standard Kafka metrics
+    - pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), topic=(.+), partition=(.*)><>Value
+      name: kafka_server_$1_$2
+      type: GAUGE
+      labels:
+       clientId: "$3"
+       topic: "$4"
+       partition: "$5"
+    - pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), brokerHost=(.+), brokerPort=(.+)><>Value
+      name: kafka_server_$1_$2
+      type: GAUGE
+      labels:
+       clientId: "$3"
+       broker: "$4:$5"
+    # Share Group metrics for Kafka 4.0
+    - pattern: 'kafka.server<type=share-group-metrics, groupId=(.+), topic=(.+), partition=(.+)><>RecordsUnacked'
+      name: kafka_sharegroup_records_unacked
+      labels:
+        group: "$1"
+        topic: "$2"
+        partition: "$3"
+      type: GAUGE
+    - pattern: 'kafka.server<type=share-group-metrics, groupId=(.+), topic=(.+), partition=(.+)><>OldestUnackedMessageAgeMs'
+      name: kafka_sharegroup_oldest_unacked_ms
+      labels:
+        group: "$1"
+        topic: "$2"
+        partition: "$3"
+      type: GAUGE
+    - pattern: 'kafka.server<type=share-group-metrics, groupId=(.+), topic=(.+), partition=(.+)><>RecordsAcknowledged'
+      name: kafka_sharegroup_records_acknowledged
+      labels:
+        group: "$1"
+        topic: "$2"
+        partition: "$3"
+      type: COUNTER
+    - pattern: 'kafka.server<type=share-group-metrics, groupId=(.+), topic=(.+), partition=(.+)><>RecordsReleased'
+      name: kafka_sharegroup_records_released
+      labels:
+        group: "$1"
+        topic: "$2"
+        partition: "$3"
+      type: COUNTER
+    - pattern: 'kafka.server<type=share-group-metrics, groupId=(.+), topic=(.+), partition=(.+)><>RecordsRejected'
+      name: kafka_sharegroup_records_rejected
+      labels:
+        group: "$1"
+        topic: "$2"
+        partition: "$3"
+      type: COUNTER
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  ports:
+  - name: broker
+    port: 9092
+    targetPort: 9092
+  - name: jmx
+    port: 9999
+    targetPort: 9999
+  - name: metrics
+    port: 9404
+    targetPort: 9404
+  selector:
+    app: kafka
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  selector:
+    matchLabels:
+      app: kafka
+  serviceName: kafka
+  replicas: ${KAFKA_REPLICAS}
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:${KAFKA_VERSION}
+        ports:
+        - containerPort: 9092
+        - containerPort: 9999
+        - containerPort: 9404
+        env:
+        - name: KAFKA_BROKER_ID
+          value: "0"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "zookeeper:2181"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka-0.kafka:9092"
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://0.0.0.0:9092"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "0"
+        # Enable JMX
+        - name: KAFKA_JMX_PORT
+          value: "9999"
+        - name: KAFKA_JMX_HOSTNAME
+          value: "kafka-0.kafka"
+        # JMX Prometheus Exporter as Java Agent
+        - name: KAFKA_OPTS
+          value: "-javaagent:/opt/jmx-exporter/jmx_prometheus_javaagent.jar=9404:/opt/jmx-exporter/config.yaml"
+        # Enable Share Groups (Kafka 4.0 Early Access)
+        - name: KAFKA_GROUP_COORDINATOR_SHARE_ENABLE
+          value: "${ENABLE_SHARE_GROUPS}"
+        - name: KAFKA_SHARE_GROUP_ENABLE
+          value: "${ENABLE_SHARE_GROUPS}"
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/kafka
+        - name: jmx-exporter
+          mountPath: /opt/jmx-exporter
+      initContainers:
+      - name: download-jmx-exporter
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - |
+          wget -O /opt/jmx-exporter/jmx_prometheus_javaagent.jar \
+            https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/${JMX_EXPORTER_VERSION}/jmx_prometheus_javaagent-${JMX_EXPORTER_VERSION}.jar
+          cp /config/kafka-jmx-exporter.yaml /opt/jmx-exporter/config.yaml
+        volumeMounts:
+        - name: jmx-exporter
+          mountPath: /opt/jmx-exporter
+        - name: jmx-config
+          mountPath: /config
+      volumes:
+      - name: jmx-exporter
+        emptyDir: {}
+      - name: jmx-config
+        configMap:
+          name: kafka-jmx-exporter-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: ${KAFKA_STORAGE_SIZE}

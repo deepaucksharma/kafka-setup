@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: newrelic-config
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  nri-kafka-config.yml: |
+    integrations:
+      - name: nri-kafka
+        env:
+          CLUSTER_NAME: ${KAFKA_CLUSTER_NAME}
+          AUTODISCOVER_STRATEGY: zookeeper
+          ZOOKEEPER_HOSTS: '[{"host": "zookeeper", "port": 2181}]'
+          # Collect both broker and consumer metrics
+          COLLECT_BROKER_TOPIC_DATA: true
+          COLLECT_TOPIC_SIZE: true
+          # JMX connection to Kafka broker
+          JMX_HOST: kafka-0.kafka
+          JMX_PORT: 9999
+          # Additional JMX metrics for topics and brokers
+          TOPIC_LIST: '["test-topic", "share-group-topic"]'
+        interval: 30s

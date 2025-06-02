@@ -1,0 +1,16 @@
+# Environment variables
+.env
+
+# Generated files
+generated/
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE files
+.idea/
+.vscode/
+*.iml

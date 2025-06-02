@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: share-group-test-script
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  test-consumer.py: |
+    from confluent_kafka import Consumer, KafkaError, KafkaException
+    import sys
+    
+    conf = {
+        'bootstrap.servers': 'kafka-0.kafka:9092',
+        'group.id': 'test-share-group',
+        'group.type': 'share',  # Enable Share Group mode
+        'auto.offset.reset': 'earliest',
+        'enable.auto.commit': False,  # Share groups use explicit ACK
+    }
+    
+    consumer = Consumer(conf)
+    consumer.subscribe(['share-group-topic'])
+    
+    try:
+        while True:
+            msg = consumer.poll(1.0)
+            
+            if msg is None:
+                continue
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    print(f'Reached end of partition {msg.partition()}')
+                else:
+                    raise KafkaException(msg.error())
+            else:
+                print(f'Received message: {msg.value().decode("utf-8")}')
+                # Explicitly acknowledge the message (Share Group feature)
+                consumer.acknowledge(msg)
+                
+    except KeyboardInterrupt:
+        pass
+    finally:
+        consumer.close()
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-test-topic
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: create-topic
+        image: confluentinc/cp-kafka:${KAFKA_VERSION}
+        command:
+        - sh
+        - -c
+        - |
+          # Wait for Kafka to be ready
+          sleep 30
+          # Create a test topic with 3 partitions
+          kafka-topics --bootstrap-server kafka-0.kafka:9092 \
+            --create --topic share-group-topic \
+            --partitions 3 --replication-factor 1
+          # Create another test topic for traditional consumers
+          kafka-topics --bootstrap-server kafka-0.kafka:9092 \
+            --create --topic test-topic \
+            --partitions 3 --replication-factor 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: share-group-consumer
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  replicas: ${SHARE_GROUP_TEST_REPLICAS}  # Multiple consumers in the share group
+  selector:
+    matchLabels:
+      app: share-group-consumer
+  template:
+    metadata:
+      labels:
+        app: share-group-consumer
+    spec:
+      containers:
+      - name: consumer
+        image: python:3.9-slim
+        command:
+        - sh
+        - -c
+        - |
+          pip install confluent-kafka
+          python /scripts/test-consumer.py
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+      volumes:
+      - name: script
+        configMap:
+          name: share-group-test-script

@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: newrelic-ohi-config
+  namespace: ${KAFKA_NAMESPACE}
+data:
+  kafka-sharegroup-ohi-config.yml: |
+    integrations:
+      - name: com.newrelic.kafka-sharegroup
+        exec: /scripts/run-ohi.sh
+        interval: ${SHARE_GROUP_MONITORING_INTERVAL}s
+        env:
+          PROMETHEUS_ENDPOINT: "${PROMETHEUS_ENDPOINT}"
+          OHI_ENTITY_NAME: "${OHI_ENTITY_NAME}"
+          OHI_INTEGRATION_VERSION: "${OHI_INTEGRATION_VERSION}"
+          OHI_PROTOCOL_VERSION: "${OHI_PROTOCOL_VERSION}"
+        custom_attributes:
+          environment: ${ENVIRONMENT}
+          cluster_name: ${KAFKA_CLUSTER_NAME}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-sharegroup-ohi
+  namespace: ${KAFKA_NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-sharegroup-ohi
+  template:
+    metadata:
+      labels:
+        app: kafka-sharegroup-ohi
+    spec:
+      serviceAccountName: newrelic-infrastructure
+      containers:
+      - name: newrelic-infra
+        image: newrelic/infrastructure:latest
+        env:
+        - name: NRIA_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: kafka-env-secret
+              key: NEW_RELIC_LICENSE_KEY
+        - name: NRIA_DISPLAY_NAME
+          value: "kafka-sharegroup-ohi"
+        - name: CLUSTER_NAME
+          value: "${NEW_RELIC_CLUSTER_NAME}"
+        - name: NRIA_CUSTOM_ATTRIBUTES
+          value: '{"purpose":"sharegroup-monitoring","deployment":"kubernetes"}'
+        envFrom:
+        - configMapRef:
+            name: kafka-env-config
+        volumeMounts:
+        - name: ohi-scripts
+          mountPath: /scripts
+        - name: ohi-config
+          mountPath: /var/db/newrelic-infra/integrations.d/kafka-sharegroup-ohi.yml
+          subPath: kafka-sharegroup-ohi-config.yml
+        - name: ohi-definition
+          mountPath: /var/db/newrelic-infra/custom-integrations/kafka-sharegroup-definition.yml
+          subPath: kafka-sharegroup-definition.yml
+      volumes:
+      - name: ohi-scripts
+        configMap:
+          name: custom-ohi-scripts
+          defaultMode: 0755
+      - name: ohi-config
+        configMap:
+          name: newrelic-ohi-config
+      - name: ohi-definition
+        configMap:
+          name: custom-ohi-definition
