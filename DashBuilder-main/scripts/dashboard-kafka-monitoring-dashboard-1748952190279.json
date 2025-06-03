@@ -1,0 +1,93 @@
+{
+  "name": "Kafka Monitoring Dashboard - 2025-06-03",
+  "description": "Created with Quick Dashboard tool",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Main",
+      "description": "Dashboard metrics",
+      "widgets": [
+        {
+          "title": "Broker State",
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT latest(value) FROM Metric WHERE metricName = 'kafka_server_BrokerState' FACET host"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Messages In Rate",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 5,
+            "row": 1,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT rate(sum(value), 1 second) FROM Metric WHERE metricName = 'kafka_server_BrokerTopicMetrics_MessagesInPerSec' TIMESERIES"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Share Group Unacked",
+          "visualization": {
+            "id": "viz.table"
+          },
+          "layout": {
+            "column": 9,
+            "row": 1,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT latest(kafka_sharegroup_records_unacked) FROM Metric FACET group, topic"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Consumer Lag",
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT latest(value) FROM Metric WHERE metricName = 'kafka_consumer_ConsumerLag' FACET consumer_group"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

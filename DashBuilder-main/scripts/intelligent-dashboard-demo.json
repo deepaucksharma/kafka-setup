@@ -1,0 +1,182 @@
+{
+  "features": {
+    "metricCategorization": [
+      {
+        "name": "broker.messagesInPerSecond",
+        "category": "throughput",
+        "viz": "line chart"
+      },
+      {
+        "name": "request.avgTimeFetch",
+        "category": "latency",
+        "viz": "histogram"
+      },
+      {
+        "name": "request.produceRequestsFailedPerSecond",
+        "category": "error",
+        "viz": "line with threshold"
+      },
+      {
+        "name": "cpuPercent",
+        "category": "utilization",
+        "viz": "gauge"
+      },
+      {
+        "name": "queue.size",
+        "category": "gauge",
+        "viz": "billboard"
+      },
+      {
+        "name": "broker.bytesInPerSecond",
+        "category": "bytes",
+        "viz": "area chart"
+      }
+    ],
+    "goldenSignals": {
+      "Latency": [
+        "request.avgTimeFetch",
+        "request.avgTimeProduceRequest",
+        "consumer.avgFetchLatency"
+      ],
+      "Traffic": [
+        "broker.messagesInPerSecond",
+        "broker.bytesInPerSecond",
+        "consumer.messageRate"
+      ],
+      "Errors": [
+        "request.produceRequestsFailedPerSecond",
+        "consumer.requestsExpiredPerSecond"
+      ],
+      "Saturation": [
+        "request.handlerIdle",
+        "queue.size",
+        "cpuPercent",
+        "memoryUsedPercent"
+      ]
+    },
+    "correlations": [
+      {
+        "metric1": "broker.messagesInPerSecond",
+        "metric2": "broker.bytesInPerSecond",
+        "correlation": 0.92,
+        "type": "Traffic correlation"
+      },
+      {
+        "metric1": "cpuPercent",
+        "metric2": "request.avgTimeFetch",
+        "correlation": 0.78,
+        "type": "Resource impact"
+      },
+      {
+        "metric1": "queue.size",
+        "metric2": "oldest.message.age.seconds",
+        "correlation": 0.85,
+        "type": "Queue behavior"
+      }
+    ],
+    "dashboardStructure": {
+      "pages": [
+        {
+          "name": "Golden Signals Overview",
+          "widgets": [
+            "Latency Trends (P95)",
+            "Traffic Volume",
+            "Error Rate",
+            "Resource Saturation"
+          ]
+        },
+        {
+          "name": "Kafka Broker Performance",
+          "widgets": [
+            "Broker Throughput",
+            "Message Rate by Broker",
+            "Request Latency Heatmap",
+            "Broker Health Table"
+          ]
+        },
+        {
+          "name": "Consumer Analysis",
+          "widgets": [
+            "Consumer Lag by Group",
+            "Message Processing Rate",
+            "Consumer Group Health",
+            "Lag Trend Analysis"
+          ]
+        },
+        {
+          "name": "Anomaly Detection",
+          "widgets": [
+            "Baseline Comparison",
+            "Anomaly Score Timeline",
+            "Predicted vs Actual",
+            "Alert Recommendations"
+          ]
+        }
+      ]
+    },
+    "insights": [
+      {
+        "severity": "high",
+        "message": "Missing error rate monitoring for consumer groups",
+        "type": "gap"
+      },
+      {
+        "severity": "medium",
+        "message": "Strong correlation between CPU usage and request latency suggests resource constraints",
+        "type": "correlation"
+      },
+      {
+        "severity": "low",
+        "message": "broker.messagesInPerSecond follows a daily pattern - use seasonal baselines for alerting",
+        "type": "pattern"
+      }
+    ],
+    "alertSuggestions": [
+      {
+        "name": "Kafka Producer Error Rate",
+        "condition": "request.produceRequestsFailedPerSecond > 5",
+        "window": "5 minutes",
+        "priority": "critical"
+      },
+      {
+        "name": "Consumer Lag Threshold",
+        "condition": "consumer.lag > 10000",
+        "window": "10 minutes",
+        "priority": "high"
+      },
+      {
+        "name": "Broker CPU Saturation",
+        "condition": "cpuPercent > 80",
+        "window": "5 minutes",
+        "priority": "medium"
+      }
+    ]
+  },
+  "exampleDashboard": {
+    "name": "Intelligent Kafka Dashboard - 2025-06-03",
+    "description": "Auto-generated dashboard with intelligent metric analysis",
+    "pages": [
+      {
+        "name": "Golden Signals Overview",
+        "widgets": [
+          {
+            "title": "Latency Trends (P95)",
+            "type": "line",
+            "query": "SELECT percentile(request.avgTimeFetch, 95) FROM KafkaBrokerSample TIMESERIES AUTO"
+          },
+          {
+            "title": "Traffic Volume",
+            "type": "area",
+            "query": "SELECT rate(sum(broker.messagesInPerSecond), 1 minute) FROM KafkaBrokerSample TIMESERIES AUTO"
+          },
+          {
+            "title": "Error Rate",
+            "type": "line",
+            "query": "SELECT percentage(count(*), WHERE request.produceRequestsFailedPerSecond > 0) FROM KafkaBrokerSample TIMESERIES AUTO"
+          }
+        ]
+      }
+    ]
+  },
+  "timestamp": "2025-06-03T12:23:25.412Z"
+}
