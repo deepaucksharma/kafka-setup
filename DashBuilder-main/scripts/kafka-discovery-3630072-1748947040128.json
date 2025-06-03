@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-06-03T10:37:17.752Z",
+  "accountId": "3630072",
+  "kafka": {
+    "eventTypes": [
+      {
+        "type": "K",
+        "count": 148
+      }
+    ]
+  },
+  "queues": {},
+  "metrics": [
+    "newrelic.goldenmetrics.infra.kafkabroker.leaderElectionRate",
+    "newrelic.goldenmetrics.infra.kafkabroker.produceRequestDuration99PercentileS",
+    "newrelic.goldenmetrics.infra.kafkabroker.failedProduceRequestsPerSecond",
+    "newrelic.goldenmetrics.infra.kafkabroker.incomingMessagesPerSecond"
+  ],
+  "summary": {
+    "hasKafkaBrokers": false,
+    "hasShareGroups": false,
+    "hasKafkaMetrics": true,
+    "totalShareGroups": 0,
+    "totalBacklog": 0,
+    "brokerCount": 0,
+    "topicCount": 0
+  }
+}

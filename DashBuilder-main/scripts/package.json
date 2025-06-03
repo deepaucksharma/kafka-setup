@@ -37,7 +37,7 @@
     "node-cache": "^5.1.2",
     "ora": "^5.4.1",
     "table": "^6.8.1",
-    "winston": "^3.11.0"
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.10",

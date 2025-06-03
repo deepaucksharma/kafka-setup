@@ -34,6 +34,13 @@ class NerdGraphQueryExecutor extends EventEmitter {
       warningThreshold: 100, // $100 warning threshold
       criticalThreshold: 500 // $500 critical threshold
     };
+    
+    // Initialize volume cache
+    const { LRUCache } = require('lru-cache');
+    this.volumeCache = new LRUCache({
+      max: 100,
+      ttl: 300000 // 5 minutes
+    });
   }
   
   /**
@@ -808,6 +815,38 @@ class NerdGraphQueryExecutor extends EventEmitter {
     this.costTracker.totalCost = 0;
     this.costTracker.costByEventType.clear();
     this.emit('costTrackingReset');
+  }
+  
+  /**
+   * Get cost tracking summary
+   */
+  getCostTracking() {
+    const costByCategory = {};
+    this.costTracker.costByEventType.forEach((cost, eventType) => {
+      const category = this.getEventTypeCategory(eventType);
+      costByCategory[category] = (costByCategory[category] || 0) + cost;
+    });
+    
+    return {
+      totalEstimatedCost: this.costTracker.totalCost,
+      totalQueries: this.queryHistory.length,
+      costByEventType: Object.fromEntries(this.costTracker.costByEventType),
+      costByCategory,
+      warningThreshold: this.costTracker.warningThreshold,
+      criticalThreshold: this.costTracker.criticalThreshold
+    };
+  }
+  
+  /**
+   * Get event type category for cost tracking
+   */
+  getEventTypeCategory(eventType) {
+    if (eventType.toLowerCase().includes('kafka') || eventType === 'QueueSample') return 'Kafka';
+    if (['Transaction', 'Span', 'TransactionError'].includes(eventType)) return 'APM';
+    if (['SystemSample', 'ProcessSample', 'NetworkSample'].includes(eventType)) return 'Infrastructure';
+    if (eventType === 'Log') return 'Logs';
+    if (eventType === 'Metric') return 'Metrics';
+    return 'Other';
   }
 }
 

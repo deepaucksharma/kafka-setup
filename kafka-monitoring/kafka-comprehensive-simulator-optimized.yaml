@@ -1,0 +1,315 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-comprehensive-simulator-optimized
+  namespace: kafka-monitoring
+data:
+  simulator.py: |
+    #!/usr/bin/env python3
+    import subprocess
+    import time
+    import json
+    import random
+    import threading
+    import os
+    import signal
+    import sys
+    from datetime import datetime
+
+    BROKER = "kafka-0.kafka:9092"
+    
+    # Global flag for graceful shutdown
+    running = True
+    
+    def signal_handler(signum, frame):
+        global running
+        print("🛑 Shutting down simulator gracefully...")
+        running = False
+        sys.exit(0)
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
+    def run_command(cmd, check=False):
+        """Run a shell command and return output"""
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            if check and result.returncode != 0:
+                print(f"Command failed: {cmd}")
+                print(f"Error: {result.stderr}")
+            return result.stdout.strip()
+        except subprocess.TimeoutExpired:
+            print(f"Command timed out: {cmd}")
+            return ""
+        except Exception as e:
+            print(f"Error running command: {e}")
+            return ""
+
+    def create_topics():
+        """Create various topic types"""
+        print("📦 Creating comprehensive topic configurations...")
+        
+        topics = [
+            # Standard topics with different partition counts
+            {"name": "standard-p3-topic", "partitions": 3, "config": ""},
+            {"name": "standard-p5-topic", "partitions": 5, "config": ""},
+            {"name": "standard-p10-topic", "partitions": 10, "config": ""},
+            
+            # High throughput topics
+            {"name": "high-throughput-topic", "partitions": 20, "config": "segment.bytes=1073741824"},
+            
+            # Compacted topics
+            {"name": "user-profiles-compact", "partitions": 3, "config": "cleanup.policy=compact,min.cleanable.dirty.ratio=0.1"},
+            {"name": "inventory-compact", "partitions": 5, "config": "cleanup.policy=compact"},
+            
+            # Topics with retention
+            {"name": "retention-300000ms-topic", "partitions": 2, "config": "retention.ms=300000"},
+            {"name": "retention-600000ms-topic", "partitions": 3, "config": "retention.ms=600000"},
+            {"name": "retention-7200000ms-topic", "partitions": 4, "config": "retention.ms=7200000"},
+            
+            # Compressed topics
+            {"name": "compressed-gzip-topic", "partitions": 3, "config": "compression.type=gzip"},
+            {"name": "compressed-snappy-topic", "partitions": 4, "config": "compression.type=snappy"},
+            {"name": "compressed-lz4-topic", "partitions": 5, "config": "compression.type=lz4"},
+            
+            # Transaction topics
+            {"name": "transaction-topic", "partitions": 3, "config": "min.insync.replicas=1"},
+            
+            # Share Group topics (Kafka 4.0 simulation)
+            {"name": "share-group-workqueue-1", "partitions": 3, "config": ""},
+            {"name": "share-group-workqueue-2", "partitions": 5, "config": ""},
+            {"name": "share-group-workqueue-3", "partitions": 10, "config": ""},
+        ]
+        
+        for topic in topics:
+            cmd = f"kafka-topics --bootstrap-server {BROKER} --create --topic {topic['name']} --partitions {topic['partitions']} --replication-factor 1"
+            if topic['config']:
+                cmd += f" --config {topic['config']}"
+            run_command(cmd)
+            print(f"✅ Created topic: {topic['name']}")
+
+    def produce_messages():
+        """Main producer function that cycles through different patterns"""
+        print("📊 Starting message production...")
+        
+        message_count = 0
+        patterns = ["steady", "burst", "large", "keyed", "transactional"]
+        current_pattern = 0
+        
+        while running:
+            pattern = patterns[current_pattern % len(patterns)]
+            
+            # Select a random topic
+            topics = ["standard-p3-topic", "standard-p5-topic", "high-throughput-topic", 
+                     "compressed-snappy-topic", "transaction-topic", "share-group-workqueue-1"]
+            topic = random.choice(topics)
+            
+            # Generate message based on pattern
+            if pattern == "steady":
+                # Steady stream
+                for i in range(10):
+                    if not running:
+                        break
+                    msg = json.dumps({
+                        "timestamp": int(time.time()),
+                        "type": "steady",
+                        "seq": message_count,
+                        "data": {"value": random.randint(1, 1000)}
+                    })
+                    cmd = f"echo '{msg}' | kafka-console-producer --broker-list {BROKER} --topic {topic}"
+                    run_command(cmd)
+                    message_count += 1
+                    time.sleep(0.1)
+                    
+            elif pattern == "burst":
+                # Burst of messages
+                print(f"💥 Burst producing to {topic}")
+                for i in range(50):
+                    if not running:
+                        break
+                    msg = json.dumps({
+                        "timestamp": int(time.time()),
+                        "type": "burst",
+                        "seq": message_count + i
+                    })
+                    cmd = f"echo '{msg}' | kafka-console-producer --broker-list {BROKER} --topic {topic}"
+                    run_command(cmd)
+                message_count += 50
+                
+            elif pattern == "large":
+                # Large message
+                large_data = "x" * random.randint(1000, 10000)
+                msg = json.dumps({
+                    "timestamp": int(time.time()),
+                    "type": "large",
+                    "data": large_data
+                })
+                cmd = f"echo '{msg}' | kafka-console-producer --broker-list {BROKER} --topic {topic}"
+                run_command(cmd)
+                message_count += 1
+                
+            elif pattern == "keyed":
+                # Keyed messages
+                for i in range(20):
+                    if not running:
+                        break
+                    key = f"user-{random.randint(1, 100)}"
+                    msg = json.dumps({
+                        "userId": key,
+                        "action": random.choice(["login", "purchase", "view", "logout"]),
+                        "timestamp": int(time.time())
+                    })
+                    cmd = f"echo '{key}:{msg}' | kafka-console-producer --broker-list {BROKER} --topic {topic} --property parse.key=true --property key.separator=:"
+                    run_command(cmd)
+                    message_count += 1
+                    
+            elif pattern == "transactional":
+                # Transactional messages (simulated)
+                print(f"💰 Transactional produce to {topic}")
+                for i in range(10):
+                    if not running:
+                        break
+                    msg = json.dumps({
+                        "txnId": f"txn-{random.randint(1000, 9999)}",
+                        "amount": random.randint(10, 1000),
+                        "type": "transaction"
+                    })
+                    cmd = f"echo '{msg}' | kafka-console-producer --broker-list {BROKER} --topic {topic}"
+                    run_command(cmd)
+                    message_count += 1
+            
+            # Move to next pattern
+            current_pattern += 1
+            
+            # Log progress every 100 messages
+            if message_count % 100 == 0:
+                print(f"📈 Produced {message_count} messages")
+            
+            # Sleep between patterns
+            time.sleep(random.uniform(1, 5))
+
+    def consume_messages():
+        """Consumer function with different patterns"""
+        print("👥 Starting consumer patterns...")
+        
+        consumer_groups = [
+            {"name": "fast-consumer", "topics": ["standard-p5-topic"], "delay": 0},
+            {"name": "slow-consumer", "topics": ["high-throughput-topic"], "delay": 0.5},
+            {"name": "batch-consumer", "topics": ["standard-p10-topic"], "delay": 0},
+            {"name": "multi-topic-consumer", "topics": ["standard-p3-topic", "standard-p5-topic"], "delay": 0.1}
+        ]
+        
+        def run_consumer(group_config):
+            """Run a single consumer with specified behavior"""
+            while running:
+                for topic in group_config["topics"]:
+                    # Consume messages for 10 seconds
+                    cmd = f"timeout 10s kafka-console-consumer --bootstrap-server {BROKER} --topic {topic} --group {group_config['name']} --from-beginning > /dev/null 2>&1"
+                    run_command(cmd)
+                    
+                    # If slow consumer, add delay
+                    if group_config["delay"] > 0:
+                        time.sleep(group_config["delay"])
+                
+                # Batch consumer sleeps between batches
+                if "batch" in group_config["name"]:
+                    time.sleep(50)
+                else:
+                    time.sleep(5)
+        
+        # Start consumer threads
+        threads = []
+        for config in consumer_groups:
+            t = threading.Thread(target=run_consumer, args=(config,))
+            t.daemon = True
+            t.start()
+            threads.append(t)
+        
+        return threads
+
+    def monitor_status():
+        """Periodically report status"""
+        while running:
+            print(f"\n📊 Status Report - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Count topics
+            topics_output = run_command(f"kafka-topics --list --bootstrap-server {BROKER} 2>/dev/null")
+            if topics_output:
+                topic_count = len(topics_output.split('\n'))
+                print(f"Topics: {topic_count}")
+            
+            # Count consumer groups
+            groups_output = run_command(f"kafka-consumer-groups --list --bootstrap-server {BROKER} 2>/dev/null")
+            if groups_output:
+                group_count = len(groups_output.split('\n'))
+                print(f"Consumer Groups: {group_count}")
+            
+            # Sleep for 60 seconds
+            for i in range(60):
+                if not running:
+                    break
+                time.sleep(1)
+
+    def main():
+        """Main execution"""
+        print("🚀 Kafka Comprehensive Data Simulator Starting...")
+        
+        # Create topics
+        create_topics()
+        
+        # Start producer in a thread
+        producer_thread = threading.Thread(target=produce_messages)
+        producer_thread.daemon = True
+        producer_thread.start()
+        
+        # Start consumers
+        consumer_threads = consume_messages()
+        
+        # Start monitoring in main thread
+        monitor_status()
+
+    if __name__ == "__main__":
+        main()
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-comprehensive-simulator
+  namespace: kafka-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-comprehensive-simulator
+  template:
+    metadata:
+      labels:
+        app: kafka-comprehensive-simulator
+    spec:
+      containers:
+      - name: simulator
+        image: confluentinc/cp-kafka:7.5.0
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        env:
+        - name: KAFKA_HEAP_OPTS
+          value: "-Xmx256M -Xms128M"
+        - name: KAFKA_OPTS
+          value: ""
+        command:
+        - python3
+        - /scripts/simulator.py
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+      volumes:
+      - name: scripts
+        configMap:
+          name: kafka-comprehensive-simulator-optimized
+          defaultMode: 0755

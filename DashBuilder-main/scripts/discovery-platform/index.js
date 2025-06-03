@@ -17,6 +17,7 @@ const DiscoveryEngine = require('./lib/discovery-engine');
 const QueryOptimizer = require('./lib/query-optimizer');
 const DataAnalyzer = require('./lib/data-analyzer');
 const DashboardBuilder = require('./lib/dashboard-builder');
+const DashboardIntegration = require('./lib/dashboard-integration');
 const ProgressManager = require('./lib/progress-manager');
 const RateLimiter = require('./lib/rate-limiter');
 const { logger } = require('./lib/logger');
@@ -59,7 +60,7 @@ class DiscoveryPlatform extends EventEmitter {
       
       // Progress options
       saveProgress: config.saveProgress !== false,
-      progressFile: config.progressFile || `discovery-progress-${config.accountId}.json`,
+      progressFile: config.progressFile || `discovery-progress-${config.accountId || process.env.NEW_RELIC_ACCOUNT_ID || process.env.ACC || 'unknown'}.json`,
       checkpointInterval: config.checkpointInterval || 60000, // 1 minute
       
       // Feature flags
@@ -128,6 +129,11 @@ class DiscoveryPlatform extends EventEmitter {
     this.dashboardBuilder = new DashboardBuilder({
       client: this.client,
       config: this.config
+    });
+    
+    this.dashboardIntegration = new DashboardIntegration({
+      ...this.config,
+      accountId: this.config.accountId
     });
     
     // State
@@ -736,11 +742,44 @@ class DiscoveryPlatform extends EventEmitter {
     logger.info('Phase 4: Creating comprehensive dashboard');
     
     try {
+      // First generate dashboard config using the integration module
+      const dashboardConfig = await this.dashboardIntegration.generateDashboardConfig({
+        ...this.state.discoveries,
+        accountId: this.config.accountId
+      });
+      
+      // Export the dashboard config for future use
+      const exportPath = path.join(
+        __dirname, 
+        '../..', 
+        'generated-dashboards',
+        `discovery-${this.config.accountId}-${Date.now()}.json`
+      );
+      await this.dashboardIntegration.exportDashboard(dashboardConfig, exportPath);
+      
+      // Try to deploy using the integration module (which uses DashBuilder)
+      try {
+        const deployResult = await this.dashboardIntegration.deployDashboard(dashboardConfig);
+        
+        if (deployResult) {
+          this.state.discoveries.dashboardUrl = deployResult.url;
+          this.state.discoveries.dashboardId = deployResult.dashboardId;
+          logger.info('Dashboard created via DashBuilder integration', { 
+            url: deployResult.url,
+            exportPath 
+          });
+          return;
+        }
+      } catch (integrationError) {
+        logger.warn('DashBuilder integration not available, falling back to direct creation', integrationError.message);
+      }
+      
+      // Fallback to original dashboard builder
       const dashboard = await this.dashboardBuilder.build(this.state.discoveries);
       
       if (dashboard) {
         this.state.discoveries.dashboardUrl = dashboard.url;
-        logger.info('Dashboard created successfully', { url: dashboard.url });
+        logger.info('Dashboard created successfully via fallback', { url: dashboard.url });
       }
       
     } catch (error) {
@@ -834,8 +873,8 @@ class DiscoveryPlatform extends EventEmitter {
     
     // Initialize cache if not exists
     if (!this.queryCache && this.config.enableCache) {
-      const LRU = require('lru-cache');
-      this.queryCache = new LRU({ 
+      const { LRUCache } = require('lru-cache');
+      this.queryCache = new LRUCache({ 
         max: this.config.cacheSize,
         ttl: this.config.cacheTTL
       });

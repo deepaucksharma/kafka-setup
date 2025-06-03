@@ -11,9 +11,11 @@ data:
           # Cluster identification
           CLUSTER_NAME: ${KAFKA_CLUSTER_NAME}
           
-          # Use bootstrap servers instead of deprecated Zookeeper
-          AUTODISCOVER_STRATEGY: bootstrap
-          BOOTSTRAP_SERVERS: kafka-0.kafka:9092
+          # Temporary workaround: Use Zookeeper discovery due to bootstrap bug
+          AUTODISCOVER_STRATEGY: zookeeper
+          ZOOKEEPER_HOSTS: '[{"host": "zookeeper.kafka-monitoring.svc.cluster.local", "port": 2181}]'
+          # BOOTSTRAP_SERVERS is still needed for some operations
+          BOOTSTRAP_SERVERS: kafka-0.kafka.kafka-monitoring.svc.cluster.local:9092
           
           # Broker metrics collection
           COLLECT_BROKER_TOPIC_DATA: true
@@ -40,7 +42,7 @@ data:
           # CONSUMER_GROUP_REGEX: '.*'  # Matches all groups
           
           # JMX connection settings
-          JMX_HOST: kafka-0.kafka
+          JMX_HOST: kafka-0.kafka.kafka-monitoring.svc.cluster.local
           JMX_PORT: 9999
           JMX_USER: ""
           JMX_PASSWORD: ""
@@ -59,6 +61,8 @@ data:
           # Producer/Consumer offset tracking
           PRODUCER_OFFSET: true
           CONSUMER_OFFSET: true
+          # Consumer groups to monitor (required when CONSUMER_OFFSET is true)
+          CONSUMER_GROUP_REGEX: '.*'
           
           # Topic partition details
           TOPIC_BUCKET_SIZE: 150  # Number of topics to fetch per request
@@ -73,8 +77,9 @@ data:
       - name: nri-kafka
         env:
           CLUSTER_NAME: ${KAFKA_CLUSTER_NAME}-consumer-lag
-          AUTODISCOVER_STRATEGY: bootstrap
-          BOOTSTRAP_SERVERS: kafka-0.kafka:9092
+          AUTODISCOVER_STRATEGY: zookeeper
+          ZOOKEEPER_HOSTS: '[{"host": "zookeeper.kafka-monitoring.svc.cluster.local", "port": 2181}]'
+          BOOTSTRAP_SERVERS: kafka-0.kafka.kafka-monitoring.svc.cluster.local:9092
           
           # Focus on consumer metrics only
           COLLECT_BROKER_TOPIC_DATA: false

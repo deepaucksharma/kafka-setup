@@ -1,0 +1,213 @@
+{
+  "name": "Kafka Monitoring Dashboard",
+  "description": "Comprehensive Kafka cluster monitoring with Share Groups support",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Broker Overview",
+      "description": "Kafka broker health and performance metrics",
+      "widgets": [
+        {
+          "title": "Broker Status",
+          "layout": {"column": 1, "row": 1, "width": 4, "height": 3},
+          "visualization": {"id": "viz.billboard"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaBrokerSample SELECT latest(net.underReplicatedPartitions) as 'Under-replicated', latest(disk.usedPercent) as 'Disk Used %', latest(controller.activeControllerCount) as 'Active Controller' WHERE clusterName = 'kafka-k8s-cluster' SINCE 5 minutes ago"
+            }]
+          }
+        },
+        {
+          "title": "Messages In/Out Rate",
+          "layout": {"column": 5, "row": 1, "width": 8, "height": 3},
+          "visualization": {"id": "viz.line"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaBrokerSample SELECT average(net.messagesInPerSecond) as 'Messages In/sec', average(net.bytesInPerSecond)/1024/1024 as 'MB In/sec', average(net.bytesOutPerSecond)/1024/1024 as 'MB Out/sec' WHERE clusterName = 'kafka-k8s-cluster' TIMESERIES AUTO"
+            }]
+          }
+        },
+        {
+          "title": "Request Performance",
+          "layout": {"column": 1, "row": 4, "width": 6, "height": 3},
+          "visualization": {"id": "viz.line"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaBrokerSample SELECT average(request.avgProduceRequestMs) as 'Produce', average(request.avgFetchRequestMs) as 'Fetch', average(request.avgMetadataRequestMs) as 'Metadata' WHERE clusterName = 'kafka-k8s-cluster' TIMESERIES AUTO"
+            }]
+          }
+        },
+        {
+          "title": "JVM Memory Usage",
+          "layout": {"column": 7, "row": 4, "width": 6, "height": 3},
+          "visualization": {"id": "viz.area"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaBrokerSample SELECT average(consumer.totalJvmMemoryUsedBytes)/1024/1024 as 'JVM Memory (MB)' WHERE clusterName = 'kafka-k8s-cluster' TIMESERIES AUTO"
+            }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Topics & Partitions",
+      "description": "Topic-level metrics and partition distribution",
+      "widgets": [
+        {
+          "title": "Top Topics by Messages",
+          "layout": {"column": 1, "row": 1, "width": 6, "height": 3},
+          "visualization": {"id": "viz.bar"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaTopicSample SELECT sum(topic.messagesInPerSecond) WHERE clusterName = 'kafka-k8s-cluster' FACET topic LIMIT 20 SINCE 5 minutes ago"
+            }]
+          }
+        },
+        {
+          "title": "Topic Partition Count",
+          "layout": {"column": 7, "row": 1, "width": 6, "height": 3},
+          "visualization": {"id": "viz.table"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaTopicSample SELECT uniqueCount(partition) as 'Partitions' WHERE clusterName = 'kafka-k8s-cluster' FACET topic LIMIT 50 SINCE 5 minutes ago"
+            }]
+          }
+        },
+        {
+          "title": "Topic Throughput Timeline",
+          "layout": {"column": 1, "row": 4, "width": 12, "height": 3},
+          "visualization": {"id": "viz.area"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaTopicSample SELECT average(topic.messagesInPerSecond) WHERE clusterName = 'kafka-k8s-cluster' FACET topic TIMESERIES AUTO LIMIT 10"
+            }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consumer Groups",
+      "description": "Consumer group lag and performance",
+      "widgets": [
+        {
+          "title": "Consumer Group Lag",
+          "layout": {"column": 1, "row": 1, "width": 8, "height": 3},
+          "visualization": {"id": "viz.line"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaConsumerSample SELECT sum(consumer.lag) WHERE clusterName = 'kafka-k8s-cluster' FACET consumerGroup TIMESERIES AUTO LIMIT 20"
+            }]
+          }
+        },
+        {
+          "title": "Total Lag by Group",
+          "layout": {"column": 9, "row": 1, "width": 4, "height": 3},
+          "visualization": {"id": "viz.billboard"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaConsumerSample SELECT sum(consumer.lag) as 'Total Lag' WHERE clusterName = 'kafka-k8s-cluster' FACET consumerGroup LIMIT 10 SINCE 5 minutes ago"
+            }]
+          }
+        },
+        {
+          "title": "Consumer Message Rate",
+          "layout": {"column": 1, "row": 4, "width": 6, "height": 3},
+          "visualization": {"id": "viz.area"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaConsumerSample SELECT average(consumer.messagesConsumedPerSecond) WHERE clusterName = 'kafka-k8s-cluster' FACET consumerGroup TIMESERIES AUTO LIMIT 10"
+            }]
+          }
+        },
+        {
+          "title": "Consumer Group Members",
+          "layout": {"column": 7, "row": 4, "width": 6, "height": 3},
+          "visualization": {"id": "viz.table"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM KafkaConsumerSample SELECT uniqueCount(memberId) as 'Members', sum(consumer.lag) as 'Total Lag' WHERE clusterName = 'kafka-k8s-cluster' FACET consumerGroup SINCE 5 minutes ago"
+            }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Share Groups (Future)",
+      "description": "Kafka 4.0 Share Group monitoring",
+      "widgets": [
+        {
+          "title": "Share Group Queue Depth",
+          "layout": {"column": 1, "row": 1, "width": 6, "height": 3},
+          "visualization": {"id": "viz.line"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM QueueSample SELECT average(queue.size) WHERE provider = 'kafka' FACET share.group.name TIMESERIES AUTO"
+            }]
+          }
+        },
+        {
+          "title": "Message Age",
+          "layout": {"column": 7, "row": 1, "width": 6, "height": 3},
+          "visualization": {"id": "viz.area"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM QueueSample SELECT max(oldest.message.age.seconds) WHERE provider = 'kafka' FACET share.group.name TIMESERIES AUTO"
+            }]
+          }
+        },
+        {
+          "title": "Share Group Processing",
+          "layout": {"column": 1, "row": 4, "width": 12, "height": 3},
+          "visualization": {"id": "viz.billboard"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM QueueSample SELECT sum(messages.acknowledged) as 'Acknowledged', sum(messages.released) as 'Released', sum(messages.rejected) as 'Rejected' WHERE provider = 'kafka' SINCE 10 minutes ago"
+            }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Infrastructure",
+      "description": "Kubernetes and infrastructure metrics",
+      "widgets": [
+        {
+          "title": "Pod Status",
+          "layout": {"column": 1, "row": 1, "width": 6, "height": 3},
+          "visualization": {"id": "viz.table"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM K8sPodSample SELECT latest(status) WHERE clusterName = 'kafka-k8s-monitoring' AND namespaceName = 'kafka-monitoring' FACET podName SINCE 5 minutes ago"
+            }]
+          }
+        },
+        {
+          "title": "CPU & Memory Usage",
+          "layout": {"column": 7, "row": 1, "width": 6, "height": 3},
+          "visualization": {"id": "viz.line"},
+          "configuration": {
+            "nrqlQueries": [{
+              "accountId": 0,
+              "query": "FROM K8sContainerSample SELECT average(cpuUsedCores) as 'CPU Cores', average(memoryUsedBytes)/1024/1024/1024 as 'Memory GB' WHERE clusterName = 'kafka-k8s-monitoring' AND namespaceName = 'kafka-monitoring' FACET containerName TIMESERIES AUTO"
+            }]
+          }
+        }
+      ]
+    }
+  ]
+}

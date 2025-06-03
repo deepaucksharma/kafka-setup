@@ -13,7 +13,7 @@ data:
           
           # Use bootstrap servers instead of deprecated Zookeeper
           AUTODISCOVER_STRATEGY: bootstrap
-          BOOTSTRAP_SERVERS: kafka-0.kafka:9092
+          BOOTSTRAP_SERVERS: kafka-0.kafka.kafka-monitoring.svc.cluster.local:9092
           
           # Broker metrics collection
           COLLECT_BROKER_TOPIC_DATA: true
@@ -40,7 +40,7 @@ data:
           # CONSUMER_GROUP_REGEX: '.*'  # Matches all groups
           
           # JMX connection settings
-          JMX_HOST: kafka-0.kafka
+          JMX_HOST: kafka-0.kafka.kafka-monitoring.svc.cluster.local
           JMX_PORT: 9999
           JMX_USER: ""
           JMX_PASSWORD: ""
@@ -74,7 +74,7 @@ data:
         env:
           CLUSTER_NAME: ${KAFKA_CLUSTER_NAME}-consumer-lag
           AUTODISCOVER_STRATEGY: bootstrap
-          BOOTSTRAP_SERVERS: kafka-0.kafka:9092
+          BOOTSTRAP_SERVERS: kafka-0.kafka.kafka-monitoring.svc.cluster.local:9092
           
           # Focus on consumer metrics only
           COLLECT_BROKER_TOPIC_DATA: false
