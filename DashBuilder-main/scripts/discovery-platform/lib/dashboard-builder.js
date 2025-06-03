@@ -1,4 +1,5 @@
 const { logger } = require('./logger');
+const IntelligentDashboardBuilder = require('./intelligent-dashboard-builder');
 
 class DashboardBuilder {
   constructor({ client, config }) {
@@ -8,11 +9,41 @@ class DashboardBuilder {
     this.defaultPermissions = 'PUBLIC_READ_WRITE';
     this.maxWidgetsPerPage = config.maxWidgetsPerPage || 12;
     this.maxPagesPerDashboard = config.maxPagesPerDashboard || 10;
+    
+    // Initialize intelligent dashboard builder if enabled
+    if (config.enableIntelligentDashboards !== false) {
+      this.intelligentBuilder = new IntelligentDashboardBuilder({
+        ...config,
+        apiKey: config.apiKey || process.env.NEW_RELIC_API_KEY
+      });
+    }
   }
   
   async build(discoveries) {
     logger.info('Building dashboard from discoveries');
     
+    // Try intelligent dashboard builder first if available
+    if (this.intelligentBuilder && this.config.enableIntelligentDashboards !== false) {
+      try {
+        logger.info('Attempting intelligent dashboard generation');
+        const intelligentResult = await this.intelligentBuilder.buildDashboards(discoveries);
+        
+        // Return intelligent dashboard result
+        return {
+          type: 'intelligent',
+          dashboard: intelligentResult.dashboard,
+          url: intelligentResult.dashboard.url,
+          guid: intelligentResult.dashboard.guid,
+          analysis: intelligentResult.analysis,
+          correlations: intelligentResult.correlations,
+          insights: intelligentResult.insights
+        };
+      } catch (error) {
+        logger.warn('Intelligent dashboard generation failed, falling back to standard:', error.message);
+      }
+    }
+    
+    // Standard dashboard building
     const dashboard = {
       name: `Discovery Dashboard - ${new Date().toISOString().split('T')[0]}`,
       description: `Auto-generated dashboard from discovery in account ${this.config.accountId}`,
@@ -54,6 +85,7 @@ class DashboardBuilder {
       const result = await this.deployDashboard(dashboard);
       
       return {
+        type: 'standard',
         dashboard,
         url: result.url,
         guid: result.guid

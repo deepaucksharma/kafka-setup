@@ -1,0 +1,269 @@
+{
+  "dashboard": {
+    "name": "Intelligent Kafka Dashboard - 2025-06-03",
+    "description": "Auto-generated dashboard with intelligent metric categorization and optimal visualizations",
+    "permissions": "PUBLIC_READ_WRITE",
+    "pages": [
+      {
+        "name": "Golden Signals Overview",
+        "description": "Key performance indicators based on Google SRE golden signals",
+        "widgets": [
+          {
+            "title": "🧠 Intelligent Dashboard Overview",
+            "visualization": {
+              "id": "viz.markdown"
+            },
+            "layout": {
+              "column": 1,
+              "row": 1,
+              "height": 3,
+              "width": 4
+            },
+            "rawConfiguration": {
+              "text": "# Intelligent Kafka Monitoring\n\n**Generated**: 2025-06-03T12:49:24.144Z  \n**Account**: 3630072\n\n## Features\n- 🚦 **Golden Signals**: Automatic metric categorization\n- 📊 **Smart Visualizations**: Optimal chart types selected\n- 🔗 **Correlations**: Related metrics grouped together\n- 💡 **Insights**: Automated recommendations\n\n## Data Status\n✅ Kafka broker data available"
+            }
+          },
+          {
+            "title": "⏱️ Latency - Request Duration",
+            "visualization": {
+              "id": "viz.line"
+            },
+            "layout": {
+              "column": 5,
+              "row": 1,
+              "height": 3,
+              "width": 4
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT percentile(request.avgTimeFetch, 95) as 'Fetch P95', percentile(request.avgTimeProduceRequest, 95) as 'Produce P95', average(request.avgTimeMetadata) as 'Metadata Avg' FROM KafkaBrokerSample TIMESERIES AUTO"
+                }
+              ]
+            }
+          },
+          {
+            "title": "📊 Traffic - Message Throughput",
+            "visualization": {
+              "id": "viz.area"
+            },
+            "layout": {
+              "column": 9,
+              "row": 1,
+              "height": 3,
+              "width": 4
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT rate(sum(broker.messagesInPerSecond), 1 minute) as 'Messages/min' FROM KafkaBrokerSample TIMESERIES AUTO"
+                }
+              ]
+            }
+          },
+          {
+            "title": "❌ Errors - Failed Requests",
+            "visualization": {
+              "id": "viz.line"
+            },
+            "layout": {
+              "column": 1,
+              "row": 4,
+              "height": 3,
+              "width": 6
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT sum(request.produceRequestsFailedPerSecond) as 'Failed Produce', sum(request.clientFetchesFailedPerSecond) as 'Failed Fetch', sum(consumer.requestsExpiredPerSecond) as 'Expired Requests' FROM KafkaBrokerSample TIMESERIES AUTO"
+                }
+              ]
+            }
+          },
+          {
+            "title": "🔥 Saturation - Resource Usage",
+            "visualization": {
+              "id": "viz.billboard"
+            },
+            "layout": {
+              "column": 7,
+              "row": 4,
+              "height": 3,
+              "width": 6
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT latest(request.handlerIdle) * 100 as 'Handler Idle %' FROM KafkaBrokerSample"
+                },
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT latest(replication.unreplicatedPartitions) as 'Unreplicated Partitions' FROM KafkaBrokerSample"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "Intelligent Analysis",
+        "description": "Automated insights and optimized visualizations",
+        "widgets": [
+          {
+            "title": "📈 Throughput Analysis",
+            "visualization": {
+              "id": "viz.area"
+            },
+            "layout": {
+              "column": 1,
+              "row": 1,
+              "height": 3,
+              "width": 8
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT average(broker.bytesInPerSecond)/1024/1024 as 'MB In/sec', average(broker.bytesOutPerSecond)/1024/1024 as 'MB Out/sec' FROM KafkaBrokerSample TIMESERIES AUTO"
+                }
+              ]
+            }
+          },
+          {
+            "title": "🔍 Broker Performance Comparison",
+            "visualization": {
+              "id": "viz.bar"
+            },
+            "layout": {
+              "column": 9,
+              "row": 1,
+              "height": 3,
+              "width": 4
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT average(broker.messagesInPerSecond) as 'Msg/sec', average(broker.bytesInPerSecond)/1024 as 'KB In/sec' FROM KafkaBrokerSample FACET entity.name SINCE 30 minutes ago"
+                }
+              ]
+            }
+          },
+          {
+            "title": "🔗 Correlated Metrics - CPU vs Latency",
+            "visualization": {
+              "id": "viz.line"
+            },
+            "layout": {
+              "column": 1,
+              "row": 4,
+              "height": 3,
+              "width": 6
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT average(request.avgTimeFetch) as 'Avg Fetch Time' FROM KafkaBrokerSample TIMESERIES AUTO"
+                },
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT average(cpuPercent) as 'CPU %' FROM SystemSample TIMESERIES AUTO"
+                }
+              ]
+            }
+          },
+          {
+            "title": "📋 Broker Health Matrix",
+            "visualization": {
+              "id": "viz.table"
+            },
+            "layout": {
+              "column": 7,
+              "row": 4,
+              "height": 3,
+              "width": 6
+            },
+            "rawConfiguration": {
+              "nrqlQueries": [
+                {
+                  "accountId": 3630072,
+                  "query": "SELECT latest(entity.name) as 'Broker', latest(broker.messagesInPerSecond) as 'Msg/sec', latest(request.handlerIdle) * 100 as 'Idle %', latest(replication.unreplicatedPartitions) as 'Unreplicated', latest(replication.isrShrinksPerSecond) as 'ISR Shrinks/sec' FROM KafkaBrokerSample FACET entity.guid SINCE 10 minutes ago"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "Insights & Recommendations",
+        "description": "Intelligent recommendations based on data analysis",
+        "widgets": [
+          {
+            "title": "💡 Intelligent Insights",
+            "visualization": {
+              "id": "viz.markdown"
+            },
+            "layout": {
+              "column": 1,
+              "row": 1,
+              "height": 6,
+              "width": 12
+            },
+            "rawConfiguration": {
+              "text": "# Intelligent Analysis Results\n\n## 🎯 Metric Categorization\nBased on intelligent analysis, your metrics have been categorized as:\n\n### Golden Signals Mapping\n- **Latency**: `request.avgTimeFetch`, `request.avgTimeProduceRequest`, `request.avgTimeMetadata`\n- **Traffic**: `broker.messagesInPerSecond`, `broker.bytesInPerSecond`, `broker.bytesOutPerSecond`\n- **Errors**: `request.produceRequestsFailedPerSecond`, `request.clientFetchesFailedPerSecond`\n- **Saturation**: `request.handlerIdle`, `replication.unreplicatedPartitions`\n\n## 📊 Visualization Optimization\nThe dashboard uses intelligent visualization selection:\n- **Area Charts**: For throughput metrics (bytes/messages over time)\n- **Line Charts**: For latency and error rate trends\n- **Bar Charts**: For comparing performance across brokers\n- **Tables**: For comprehensive health overview\n- **Billboards**: For current status indicators\n\n## 🔗 Detected Correlations\nBased on metric patterns, these metrics are likely correlated:\n- CPU usage ↔ Request latency (resource impact)\n- Messages/sec ↔ Bytes/sec (traffic correlation)\n- Handler idle % ↔ Request latency (saturation impact)\n\n## 🚨 Recommended Alerts\nBased on the analysis, consider these alerts:\n\n1. **High Error Rate Alert**\n   - Condition: `request.produceRequestsFailedPerSecond > 5`\n   - Window: 5 minutes\n   - Priority: Critical\n\n2. **Handler Saturation Alert**\n   - Condition: `request.handlerIdle < 0.2` (20%)\n   - Window: 5 minutes\n   - Priority: High\n\n3. **Unreplicated Partitions Alert**\n   - Condition: `replication.unreplicatedPartitions > 0`\n   - Window: 1 minute\n   - Priority: Critical\n\n## 📈 Performance Optimization\n- Monitor handler idle percentage to prevent saturation\n- Track ISR shrinks for replication health\n- Watch correlation between CPU and latency for capacity planning"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "result": {
+    "guid": "MzYzMDA3MnxWSVp8REFTSEJPQVJEfGRhOjEwMTE2MzIz",
+    "name": "Intelligent Kafka Dashboard - 2025-06-03"
+  },
+  "url": "https://one.newrelic.com/dashboards/MzYzMDA3MnxWSVp8REFTSEJPQVJEfGRhOjEwMTE2MzIz",
+  "intelligence": {
+    "goldenSignals": {
+      "latency": [
+        "request.avgTimeFetch",
+        "request.avgTimeProduceRequest"
+      ],
+      "traffic": [
+        "broker.messagesInPerSecond",
+        "broker.bytesInPerSecond"
+      ],
+      "errors": [
+        "request.produceRequestsFailedPerSecond"
+      ],
+      "saturation": [
+        "request.handlerIdle",
+        "replication.unreplicatedPartitions"
+      ]
+    },
+    "visualizationMapping": {
+      "throughput": "area",
+      "latency": "line",
+      "errors": "line",
+      "comparison": "bar",
+      "status": "table",
+      "current": "billboard"
+    },
+    "correlations": [
+      {
+        "metric1": "cpuPercent",
+        "metric2": "request.avgTimeFetch",
+        "type": "resource_impact"
+      },
+      {
+        "metric1": "broker.messagesInPerSecond",
+        "metric2": "broker.bytesInPerSecond",
+        "type": "traffic"
+      }
+    ]
+  }
+}
