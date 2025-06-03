@@ -1,106 +1,182 @@
 ```mermaid
 graph TB
     subgraph "Kubernetes Cluster (kafka-monitoring namespace)"
-        subgraph "Kafka Infrastructure"
-            ZK[Zookeeper StatefulSet<br/>Port: 2181]
-            KAFKA[Kafka Broker StatefulSet<br/>kafka-0]
+        subgraph "Kafka Core Infrastructure"
+            ZK[Zookeeper StatefulSet<br/>zookeeper-0<br/>Port: 2181]
             
-            subgraph "Kafka Ports"
-                P1[9092: Broker]
-                P2[9999: JMX]
-                P3[9404: Prometheus]
+            subgraph "Kafka Broker (kafka-0)"
+                KAFKA[Kafka StatefulSet<br/>Confluent CP 7.5.0]
+                
+                subgraph "Exposed Ports"
+                    P1[9092: Broker Protocol<br/>PLAINTEXT]
+                    P2[9999: JMX RMI<br/>Remote Monitoring]
+                    P3[9404: Prometheus<br/>JMX Exporter]
+                end
+                
+                JMXAGENT[JMX Prometheus<br/>Java Agent<br/>v0.19.0]
             end
             
-            KAFKA --> P1
-            KAFKA --> P2
-            KAFKA --> P3
-            KAFKA -.-> ZK
+            KAFKA -.->|coordination| ZK
+            JMXAGENT -->|expose| P3
+            KAFKA -->|metrics| P2
         end
         
-        subgraph "Monitoring Components"
-            subgraph "New Relic Infrastructure DaemonSet"
-                NRIK[nri-kafka<br/>Traditional Metrics]
-                NRIFLEX[nri-flex<br/>Prometheus Scraper]
-                OHI[Custom OHI<br/>Share Groups]
+        subgraph "Monitoring Infrastructure"
+            subgraph "NR Infrastructure DaemonSet"
+                NRINFRA[newrelic-infrastructure<br/>Pod per Node]
+                
+                subgraph "Integrated Components"
+                    NRIK1[nri-kafka #1<br/>Broker/Topic Metrics<br/>30s interval]
+                    NRIK2[nri-kafka #2<br/>Consumer Lag Only<br/>15s interval]
+                    NRIFLEX[nri-flex<br/>Prometheus Scraper<br/>30s interval]
+                end
             end
             
-            NRIOHI[kafka-sharegroup-ohi<br/>Deployment]
+            subgraph "Standalone OHI Deployment"
+                OHIDEPLOY[kafka-sharegroup-ohi<br/>Deployment]
+                OHIAGENT[NR Infrastructure<br/>Agent]
+                OHISCRIPT[Python OHI Script<br/>sharegroup-ohi.py]
+            end
         end
         
-        subgraph "Test Components"
-            SIM[Comprehensive Simulator<br/>Deployment]
-            SGC[Share Group Consumers<br/>Deployment]
-            TOOLS[Troubleshooting Pod]
+        subgraph "Data Generation & Testing"
+            subgraph "Comprehensive Simulator"
+                SIM[kafka-comprehensive-simulator<br/>Deployment]
+                SIMORCHESTRATOR[orchestrator.sh]
+                SIMCOMPONENTS[topic-manager.sh<br/>producer-patterns.sh<br/>consumer-patterns.sh<br/>metrics-generator.py<br/>sharegroup-simulator.py]
+            end
+            
+            SGC[share-group-consumer<br/>Deployment<br/>(Kafka 4.0 EA)]
+            
+            WLGEN[workload-generator<br/>Job]
+            
+            TROUBLE[troubleshooting-pod<br/>Pod]
         end
         
-        subgraph "ConfigMaps"
-            CM1[kafka-env-config]
-            CM2[newrelic-config]
-            CM3[newrelic-flex-config]
-            CM4[custom-ohi-scripts]
-            CM5[kafka-jmx-exporter-config]
+        subgraph "Configuration Layer"
+            subgraph "Core Config"
+                CM1[kafka-env-config<br/>Environment Variables]
+                S1[kafka-env-secret<br/>NR License Key]
+                CM2[newrelic-config<br/>nri-kafka settings]
+            end
+            
+            subgraph "Monitoring Config"
+                CM3[newrelic-flex-config<br/>Prometheus scraping]
+                CM4[custom-ohi-scripts<br/>OHI Python code]
+                CM5[custom-ohi-definition<br/>OHI integration def]
+                CM6[kafka-jmx-exporter-config<br/>JMX→Prometheus rules]
+            end
+            
+            subgraph "Test Config"
+                CM7[kafka-comprehensive-simulator<br/>Simulator scripts]
+                CM8[share-group-test-script<br/>Consumer test code]
+                CM9[workload-generator<br/>Load test scripts]
+            end
         end
         
-        subgraph "Secrets"
-            S1[kafka-env-secret<br/>NR License Key]
+        subgraph "Services"
+            KAFKASVC[kafka Service<br/>Headless]
+            ZKSVC[zookeeper Service]
         end
     end
     
-    subgraph "New Relic One"
-        subgraph "Event Types"
-            KBS[KafkaBrokerSample]
-            KTS[KafkaTopicSample]
-            KCS[KafkaConsumerSample]
-            QS[QueueSample]
-            M[Metric Events]
+    subgraph "New Relic One Platform"
+        subgraph "Event Types Generated"
+            subgraph "Traditional Kafka Events"
+                KBS[KafkaBrokerSample<br/>Broker metrics]
+                KTS[KafkaTopicSample<br/>Topic statistics]
+                KCS[KafkaConsumerSample<br/>Consumer lag]
+                KOS[KafkaOffsetSample<br/>Offset tracking]
+                KPS[KafkaPartitionSample<br/>Partition details]
+            end
+            
+            subgraph "Share Group Events"
+                QS[QueueSample<br/>Share Group metrics]
+                M[Metric Events<br/>Prometheus metrics]
+            end
+            
+            subgraph "Infrastructure Events"
+                SS[SystemSample<br/>Host metrics]
+                IE[IntegrationError<br/>Error tracking]
+            end
         end
         
-        subgraph "UI"
-            DASH[Dashboards]
-            QSU[Queues & Streams]
-            INF[Infrastructure]
+        subgraph "Visualization Layer"
+            DASH[Custom Dashboards<br/>6 pages]
+            QSU[Queues & Streams UI<br/>Share Groups]
+            INF[Infrastructure UI<br/>Traditional metrics]
+            ALERTS[Alert Policies<br/>3 conditions]
         end
     end
     
-    %% Data Flow - Kafka Metrics
-    P2 -->|JMX Metrics| NRIK
-    NRIK -->|Traditional Metrics| KBS
-    NRIK --> KTS
-    NRIK --> KCS
+    %% Monitoring Approach 1: Traditional Kafka (nri-kafka)
+    ZK -->|Zookeeper<br/>Discovery| NRIK1
+    P2 -->|JMX Connection<br/>Port 9999| NRIK1
+    KAFKA -->|Bootstrap<br/>Port 9092| NRIK2
     
-    %% Data Flow - Prometheus Metrics
-    P3 -->|Prometheus Format| NRIFLEX
-    NRIFLEX -->|Share Group Metrics| M
+    %% Monitoring Approach 2: Prometheus Scraping (nri-flex)
+    P3 -->|HTTP GET<br/>/metrics| NRIFLEX
     
-    %% Data Flow - Custom OHI
-    P3 -->|Prometheus Format| NRIOHI
-    NRIOHI -->|Transform| OHI
-    OHI -->|Share Group Events| QS
+    %% Monitoring Approach 3: Custom OHI
+    P3 -->|HTTP GET<br/>/metrics| OHISCRIPT
+    OHISCRIPT -->|Transform| OHIAGENT
     
-    %% Test Data Generation
-    SIM -->|Produce Messages| P1
-    SIM -->|Create Topics| P1
-    SIM -->|Consumer Groups| P1
-    SGC -->|Consume Messages| P1
+    %% Data Generation Flow
+    SIMORCHESTRATOR -->|orchestrate| SIMCOMPONENTS
+    SIMCOMPONENTS -->|produce/consume| P1
+    SGC -->|Share Group<br/>consume| P1
+    WLGEN -->|generate load| P1
     
     %% Configuration Dependencies
-    CM1 -.->|Environment| SIM
-    CM2 -.->|NRI Config| NRIK
-    CM3 -.->|Flex Config| NRIFLEX
-    CM4 -.->|Scripts| OHI
-    CM5 -.->|JMX Rules| P3
-    S1 -.->|License| NRIK
-    S1 -.->|License| NRIOHI
+    CM1 -.->|env vars| ALL[All Components]
+    S1 -.->|license| NRINFRA
+    S1 -.->|license| OHIAGENT
+    CM2 -.->|config| NRIK1
+    CM2 -.->|config| NRIK2
+    CM3 -.->|config| NRIFLEX
+    CM4 -.->|scripts| OHISCRIPT
+    CM5 -.->|definition| OHIAGENT
+    CM6 -.->|JMX rules| JMXAGENT
+    CM7 -.->|scripts| SIMCOMPONENTS
     
-    %% UI Connections
+    %% Metrics Flow to New Relic
+    NRIK1 ==>|sends| KBS
+    NRIK1 ==>|sends| KTS
+    NRIK2 ==>|sends| KCS
+    NRIK1 ==>|sends| KOS
+    NRIK1 ==>|sends| KPS
+    NRIFLEX ==>|sends| M
+    OHIAGENT ==>|sends| QS
+    NRINFRA ==>|sends| SS
+    
+    %% UI Relationships
     KBS --> INF
     KTS --> INF
     KCS --> INF
     QS --> QSU
     M --> DASH
+    SS --> INF
     
-    style KAFKA fill:#f9f,stroke:#333,stroke-width:2px
-    style NRIK fill:#9f9,stroke:#333,stroke-width:2px
-    style QS fill:#99f,stroke:#333,stroke-width:2px
-    style SIM fill:#ff9,stroke:#333,stroke-width:2px
+    %% Alert Sources
+    QS -.->|triggers| ALERTS
+    KCS -.->|triggers| ALERTS
+    
+    %% Service Connections
+    KAFKASVC -.->|headless| KAFKA
+    ZKSVC -.->|cluster IP| ZK
+    
+    %% Styling
+    classDef kafka fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    classDef monitoring fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
+    classDef data fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    classDef config fill:#efebe9,stroke:#3e2723,stroke-width:1px
+    classDef newrelic fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
+    classDef service fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    
+    class KAFKA,ZK,P1,P2,P3 kafka
+    class NRINFRA,NRIK1,NRIK2,NRIFLEX,OHIDEPLOY monitoring
+    class SIM,SGC,WLGEN,TROUBLE data
+    class CM1,CM2,CM3,CM4,CM5,CM6,CM7,CM8,CM9,S1 config
+    class KBS,KTS,KCS,QS,M,DASH,QSU,INF newrelic
+    class KAFKASVC,ZKSVC service
 ```
