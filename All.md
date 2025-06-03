@@ -1,10 +1,10 @@
 ```mermaid
 graph TB
-    subgraph "Kubernetes Cluster (kafka-monitoring namespace)"
+    subgraph "Kubernetes Cluster - kafka-monitoring namespace"
         subgraph "Kafka Core Infrastructure"
             ZK[Zookeeper StatefulSet<br/>zookeeper-0<br/>Port: 2181]
             
-            subgraph "Kafka Broker (kafka-0)"
+            subgraph "Kafka Broker kafka-0"
                 KAFKA[Kafka StatefulSet<br/>Confluent CP 7.5.0]
                 
                 subgraph "Exposed Ports"
@@ -39,14 +39,14 @@ graph TB
             end
         end
         
-        subgraph "Data Generation & Testing"
+        subgraph "Data Generation and Testing"
             subgraph "Comprehensive Simulator"
                 SIM[kafka-comprehensive-simulator<br/>Deployment]
                 SIMORCHESTRATOR[orchestrator.sh]
                 SIMCOMPONENTS[topic-manager.sh<br/>producer-patterns.sh<br/>consumer-patterns.sh<br/>metrics-generator.py<br/>sharegroup-simulator.py]
             end
             
-            SGC[share-group-consumer<br/>Deployment<br/>(Kafka 4.0 EA)]
+            SGC[share-group-consumer<br/>Deployment<br/>Kafka 4.0 EA]
             
             WLGEN[workload-generator<br/>Job]
             
@@ -109,12 +109,12 @@ graph TB
         end
     end
     
-    %% Monitoring Approach 1: Traditional Kafka (nri-kafka)
+    %% Monitoring Approach 1: Traditional Kafka
     ZK -->|Zookeeper<br/>Discovery| NRIK1
     P2 -->|JMX Connection<br/>Port 9999| NRIK1
     KAFKA -->|Bootstrap<br/>Port 9092| NRIK2
     
-    %% Monitoring Approach 2: Prometheus Scraping (nri-flex)
+    %% Monitoring Approach 2: Prometheus Scraping
     P3 -->|HTTP GET<br/>/metrics| NRIFLEX
     
     %% Monitoring Approach 3: Custom OHI
@@ -128,7 +128,8 @@ graph TB
     WLGEN -->|generate load| P1
     
     %% Configuration Dependencies
-    CM1 -.->|env vars| ALL[All Components]
+    CM1 -.->|env vars| SIM
+    CM1 -.->|env vars| SGC
     S1 -.->|license| NRINFRA
     S1 -.->|license| OHIAGENT
     CM2 -.->|config| NRIK1
