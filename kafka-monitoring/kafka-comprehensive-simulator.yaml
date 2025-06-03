@@ -1,0 +1,649 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-comprehensive-simulator
+  namespace: kafka-monitoring
+data:
+  # Main orchestrator script
+  orchestrator.sh: |
+    #!/bin/bash
+    echo "🚀 Kafka Comprehensive Data Simulator Starting..."
+    
+    # Ensure working directory exists
+    mkdir -p /tmp/simulator
+    cd /tmp/simulator
+    
+    # Start all simulation components
+    ./topic-manager.sh &
+    ./producer-patterns.sh &
+    ./consumer-patterns.sh &
+    python3 ./metrics-generator.py &
+    python3 ./sharegroup-simulator.py &
+    ./admin-operations.sh &
+    
+    # Monitor and report
+    while true; do
+        echo "📊 Simulation Status Report - $(date)"
+        ./status-reporter.sh
+        sleep 60
+    done
+
+  # Topic management with all configurations
+  topic-manager.sh: |
+    #!/bin/bash
+    BROKER="kafka-0.kafka:9092"
+    
+    echo "📦 Creating comprehensive topic configurations..."
+    
+    # 1. Standard topics with different partition counts
+    for p in 1 3 5 10 20; do
+        kafka-topics --create --if-not-exists \
+            --topic "standard-p${p}-topic" \
+            --partitions $p \
+            --replication-factor 1 \
+            --bootstrap-server $BROKER
+    done
+    
+    # 2. Compacted topics
+    kafka-topics --create --if-not-exists \
+        --topic user-profiles-compact \
+        --partitions 6 \
+        --config cleanup.policy=compact \
+        --config segment.ms=100 \
+        --config min.cleanable.dirty.ratio=0.1 \
+        --bootstrap-server $BROKER
+    
+    # 3. Time-based retention topics
+    for retention in 60000 300000 3600000; do
+        kafka-topics --create --if-not-exists \
+            --topic "retention-${retention}ms-topic" \
+            --partitions 3 \
+            --config retention.ms=$retention \
+            --config segment.ms=60000 \
+            --bootstrap-server $BROKER
+    done
+    
+    # 4. Size-based retention topics
+    kafka-topics --create --if-not-exists \
+        --topic size-retention-topic \
+        --partitions 4 \
+        --config retention.bytes=10485760 \
+        --config segment.bytes=1048576 \
+        --bootstrap-server $BROKER
+    
+    # 5. Compressed topics with different algorithms
+    for comp in gzip snappy lz4 zstd; do
+        kafka-topics --create --if-not-exists \
+            --topic "compressed-${comp}-topic" \
+            --partitions 3 \
+            --config compression.type=$comp \
+            --bootstrap-server $BROKER
+    done
+    
+    # 6. Transaction-enabled topics
+    kafka-topics --create --if-not-exists \
+        --topic transaction-topic \
+        --partitions 5 \
+        --config min.insync.replicas=1 \
+        --config unclean.leader.election.enable=false \
+        --bootstrap-server $BROKER
+    
+    # 7. High-throughput topic
+    kafka-topics --create --if-not-exists \
+        --topic high-throughput-topic \
+        --partitions 20 \
+        --config segment.bytes=1073741824 \
+        --config compression.type=lz4 \
+        --bootstrap-server $BROKER
+    
+    # 8. Share Group topics (Kafka 4.0 simulation)
+    for i in {1..3}; do
+        kafka-topics --create --if-not-exists \
+            --topic "share-group-workqueue-$i" \
+            --partitions 10 \
+            --config min.insync.replicas=1 \
+            --bootstrap-server $BROKER
+    done
+    
+    echo "✅ All topics created"
+
+  # Producer patterns for rich data
+  producer-patterns.sh: |
+    #!/bin/bash
+    BROKER="kafka-0.kafka:9092"
+    
+    # Function to generate JSON message
+    generate_json() {
+        local msg_type=$1
+        local seq=$2
+        echo "{\"timestamp\":$(date +%s),\"type\":\"$msg_type\",\"seq\":$seq,\"host\":\"$(hostname)\",\"data\":{\"value\":$RANDOM,\"metric\":$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo 0.5)}}"
+    }
+    
+    # 1. Steady stream producer
+    steady_producer() {
+        local topic=$1
+        local rate=$2
+        echo "📊 Starting steady producer for $topic at $rate msg/sec"
+        while true; do
+            for i in $(seq 1 $rate); do
+                generate_json "steady" $i | kafka-console-producer --broker-list $BROKER --topic $topic &
+            done
+            sleep 1
+        done
+    }
+    
+    # 2. Burst producer
+    burst_producer() {
+        local topic=$1
+        echo "💥 Starting burst producer for $topic"
+        while true; do
+            # Normal period
+            sleep $((RANDOM % 30 + 30))
+            # Burst
+            echo "Burst at $(date)"
+            for i in {1..1000}; do
+                generate_json "burst" $i | kafka-console-producer --broker-list $BROKER --topic $topic &
+            done
+            wait
+        done
+    }
+    
+    # 3. Keyed message producer
+    keyed_producer() {
+        local topic=$1
+        echo "🔑 Starting keyed producer for $topic"
+        while true; do
+            for user_id in {1..100}; do
+                key="user-$user_id"
+                value="{\"user_id\":$user_id,\"action\":\"update\",\"timestamp\":$(date +%s),\"attributes\":{\"score\":$RANDOM,\"active\":true}}"
+                echo "$key:$value" | kafka-console-producer --broker-list $BROKER --topic $topic --property parse.key=true --property key.separator=:
+            done
+            sleep 5
+        done
+    }
+    
+    # 4. Large message producer
+    large_message_producer() {
+        local topic=$1
+        echo "📦 Starting large message producer for $topic"
+        while true; do
+            # Generate different sized messages
+            for size in 1 10 50 100; do
+                large_data=$(dd if=/dev/urandom bs=1024 count=$size 2>/dev/null | base64 | tr -d '\n')
+                echo "{\"timestamp\":$(date +%s),\"type\":\"large\",\"size_kb\":$size,\"data\":\"$large_data\"}" | \
+                    kafka-console-producer --broker-list $BROKER --topic $topic
+            done
+            sleep 10
+        done
+    }
+    
+    # 5. Transactional producer simulation
+    transaction_producer() {
+        local topic=$1
+        echo "💰 Starting transaction producer for $topic"
+        while true; do
+            txn_id="TXN-$(date +%s)-$$"
+            # Simulate transaction with multiple messages
+            for step in "BEGIN" "PROCESS" "COMMIT"; do
+                echo "{\"txn_id\":\"$txn_id\",\"step\":\"$step\",\"timestamp\":$(date +%s),\"amount\":$((RANDOM % 1000))}" | \
+                    kafka-console-producer --broker-list $BROKER --topic $topic
+            done
+            sleep 2
+        done
+    }
+    
+    # 6. Error/poison message producer
+    error_producer() {
+        local topic=$1
+        echo "☠️ Starting error producer for $topic"
+        while true; do
+            # Send various problematic messages
+            echo "INVALID JSON {{{{" | kafka-console-producer --broker-list $BROKER --topic $topic 2>/dev/null
+            echo "" | kafka-console-producer --broker-list $BROKER --topic $topic 2>/dev/null
+            echo "null" | kafka-console-producer --broker-list $BROKER --topic $topic 2>/dev/null
+            # Malformed unicode
+            echo "{\"data\":\"$(echo -e '\xc3\x28')\"}" | kafka-console-producer --broker-list $BROKER --topic $topic 2>/dev/null
+            sleep 30
+        done
+    }
+    
+    # Start all producer patterns
+    steady_producer "standard-p5-topic" 10 &
+    steady_producer "high-throughput-topic" 100 &
+    burst_producer "standard-p10-topic" &
+    keyed_producer "user-profiles-compact" &
+    large_message_producer "compressed-lz4-topic" &
+    transaction_producer "transaction-topic" &
+    error_producer "standard-p3-topic" &
+    
+    # Share group workload patterns
+    for i in {1..3}; do
+        steady_producer "share-group-workqueue-$i" $((i * 5)) &
+    done
+    
+    wait
+
+  # Consumer patterns
+  consumer-patterns.sh: |
+    #!/bin/bash
+    BROKER="kafka-0.kafka:9092"
+    
+    echo "👥 Starting diverse consumer patterns..."
+    
+    # 1. Fast consumer (keeps up with production)
+    fast_consumer() {
+        local topic=$1
+        local group=$2
+        kafka-console-consumer --bootstrap-server $BROKER \
+            --topic $topic \
+            --group $group \
+            --from-beginning > /dev/null 2>&1
+    }
+    
+    # 2. Slow consumer (creates lag)
+    slow_consumer() {
+        local topic=$1
+        local group=$2
+        kafka-console-consumer --bootstrap-server $BROKER \
+            --topic $topic \
+            --group $group \
+            --from-beginning | while read line; do
+            sleep 0.5
+        done > /dev/null 2>&1
+    }
+    
+    # 3. Batch consumer (periodic consumption)
+    batch_consumer() {
+        local topic=$1
+        local group=$2
+        while true; do
+            # Consume for 10 seconds
+            timeout 10s kafka-console-consumer --bootstrap-server $BROKER \
+                --topic $topic \
+                --group $group \
+                --from-beginning > /dev/null 2>&1
+            # Sleep for 50 seconds (creates sawtooth lag pattern)
+            sleep 50
+        done
+    }
+    
+    # 4. Partition-specific consumer
+    partition_consumer() {
+        local topic=$1
+        local group=$2
+        local partition=$3
+        kafka-console-consumer --bootstrap-server $BROKER \
+            --topic $topic \
+            --group $group \
+            --partition $partition \
+            --from-beginning > /dev/null 2>&1
+    }
+    
+    # 5. Failing consumer (restarts frequently)
+    failing_consumer() {
+        local topic=$1
+        local group=$2
+        while true; do
+            timeout $((RANDOM % 20 + 10))s kafka-console-consumer --bootstrap-server $BROKER \
+                --topic $topic \
+                --group $group \
+                --from-beginning > /dev/null 2>&1
+            echo "Consumer $group crashed and restarting..."
+            sleep 5
+        done
+    }
+    
+    # Start various consumer patterns
+    fast_consumer "standard-p5-topic" "fast-processors" &
+    slow_consumer "high-throughput-topic" "slow-analytics" &
+    batch_consumer "standard-p10-topic" "batch-etl-job" &
+    failing_consumer "standard-p3-topic" "unstable-service" &
+    
+    # Multiple consumers in same group (load balancing)
+    for i in {1..3}; do
+        fast_consumer "share-group-workqueue-1" "distributed-workers" &
+    done
+    
+    # Partition-specific consumers
+    for p in {0..4}; do
+        partition_consumer "transaction-topic" "partition-reader-$p" $p &
+    done
+    
+    wait
+
+  # Metrics generator for monitoring richness
+  metrics-generator.py: |
+    #!/usr/bin/env python3
+    import json
+    import time
+    import random
+    import math
+    
+    def generate_jmx_style_metrics():
+        """Generate metrics that simulate JMX output"""
+        metrics = {
+            "kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec": {
+                "Count": random.randint(1000, 50000),
+                "MeanRate": random.uniform(100, 1000),
+                "OneMinuteRate": random.uniform(100, 1000),
+                "FiveMinuteRate": random.uniform(100, 1000),
+                "FifteenMinuteRate": random.uniform(100, 1000)
+            },
+            "kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec": {
+                "Count": random.randint(1000000, 50000000),
+                "MeanRate": random.uniform(10000, 100000)
+            },
+            "kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec": {
+                "Count": random.randint(1000000, 50000000),
+                "MeanRate": random.uniform(10000, 100000)
+            },
+            "kafka.network:type=RequestMetrics,name=TotalTimeMs,request=Produce": {
+                "Count": random.randint(1000, 10000),
+                "Mean": random.uniform(1, 10),
+                "95thPercentile": random.uniform(5, 20),
+                "99thPercentile": random.uniform(10, 50)
+            },
+            "kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchConsumer": {
+                "Count": random.randint(1000, 10000),
+                "Mean": random.uniform(1, 10),
+                "95thPercentile": random.uniform(5, 20),
+                "99thPercentile": random.uniform(10, 50)
+            },
+            "kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions": {
+                "Value": random.choice([0, 0, 0, 1, 2])  # Mostly healthy
+            },
+            "kafka.controller:type=KafkaController,name=OfflinePartitionsCount": {
+                "Value": 0
+            },
+            "kafka.server:type=ReplicaManager,name=LeaderCount": {
+                "Value": random.randint(10, 50)
+            },
+            "kafka.server:type=KafkaRequestHandlerPool,name=RequestHandlerAvgIdlePercent": {
+                "MeanRate": random.uniform(0.7, 0.95)
+            },
+            "kafka.log:type=LogFlushStats,name=LogFlushRateAndTimeMs": {
+                "Count": random.randint(100, 1000),
+                "Mean": random.uniform(10, 100)
+            }
+        }
+        
+        # Add per-topic metrics
+        topics = ["standard-p5-topic", "high-throughput-topic", "user-profiles-compact", "transaction-topic"]
+        for topic in topics:
+            metrics[f"kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,topic={topic}"] = {
+                "Count": random.randint(100, 5000),
+                "MeanRate": random.uniform(10, 500)
+            }
+        
+        return metrics
+    
+    def write_metrics_file():
+        metrics = generate_jmx_style_metrics()
+        with open('/tmp/jmx_metrics.json', 'w') as f:
+            json.dump(metrics, f, indent=2)
+        
+        # Also write in Prometheus format
+        with open('/tmp/prometheus_metrics.txt', 'w') as f:
+            for metric_name, values in metrics.items():
+                clean_name = metric_name.replace(':', '_').replace(',', '_').replace('=', '_')
+                for value_name, value in values.items():
+                    f.write(f"{clean_name}_{value_name} {value}\n")
+    
+    print("JMX Metrics Generator started...")
+    while True:
+        write_metrics_file()
+        time.sleep(10)
+
+  # Share Group simulator
+  sharegroup-simulator.py: |
+    #!/usr/bin/env python3
+    import json
+    import time
+    import random
+    import math
+    
+    class ShareGroupSimulator:
+        def __init__(self):
+            self.groups = [
+                {"name": "payment-processor", "topics": ["share-group-workqueue-1"], "workers": 5},
+                {"name": "order-fulfillment", "topics": ["share-group-workqueue-2"], "workers": 3},
+                {"name": "notification-service", "topics": ["share-group-workqueue-3"], "workers": 8},
+                {"name": "data-enrichment", "topics": ["share-group-workqueue-1", "share-group-workqueue-2"], "workers": 4}
+            ]
+            self.time_factor = 0
+        
+        def generate_metrics(self):
+            metrics = []
+            self.time_factor += 0.1
+            
+            for group in self.groups:
+                for topic in group["topics"]:
+                    for partition in range(10):  # 10 partitions per topic
+                        # Simulate realistic patterns
+                        base_unacked = random.randint(50, 500)
+                        
+                        # Add time-based variations (sine wave for regular patterns)
+                        time_variation = int(100 * math.sin(self.time_factor + partition))
+                        
+                        # Add random spikes
+                        spike = 0
+                        if random.random() < 0.05:  # 5% chance of spike
+                            spike = random.randint(500, 2000)
+                        
+                        unacked = max(0, base_unacked + time_variation + spike)
+                        
+                        # Processing delay correlates with unacked count
+                        if unacked > 0:
+                            base_delay = unacked * random.uniform(10, 50)
+                            oldest_unacked_ms = int(base_delay + random.randint(-1000, 1000))
+                        else:
+                            oldest_unacked_ms = 0
+                        
+                        # Acknowledgment rates
+                        ack_rate = random.randint(10, 100) * group["workers"]
+                        
+                        metric = {
+                            "timestamp": int(time.time() * 1000),
+                            "group": group["name"],
+                            "topic": topic,
+                            "partition": partition,
+                            "records_unacked": unacked,
+                            "oldest_unacked_ms": oldest_unacked_ms,
+                            "records_acknowledged": ack_rate + random.randint(-10, 10),
+                            "records_released": random.randint(0, max(1, int(ack_rate * 0.01))),
+                            "records_rejected": random.randint(0, max(1, int(ack_rate * 0.005))),
+                            "consumer_count": group["workers"],
+                            "rebalancing": random.random() < 0.02  # 2% chance of rebalancing
+                        }
+                        metrics.append(metric)
+            
+            return metrics
+        
+        def write_prometheus_format(self, metrics):
+            """Write metrics in Prometheus format"""
+            with open('/tmp/sharegroup_prometheus.txt', 'w') as f:
+                for m in metrics:
+                    labels = f'group="{m["group"]}",topic="{m["topic"]}",partition="{m["partition"]}"'
+                    f.write(f'kafka_sharegroup_records_unacked{{{labels}}} {m["records_unacked"]}\n')
+                    f.write(f'kafka_sharegroup_oldest_unacked_ms{{{labels}}} {m["oldest_unacked_ms"]}\n')
+                    f.write(f'kafka_sharegroup_records_acknowledged{{{labels}}} {m["records_acknowledged"]}\n')
+                    f.write(f'kafka_sharegroup_records_released{{{labels}}} {m["records_released"]}\n')
+                    f.write(f'kafka_sharegroup_records_rejected{{{labels}}} {m["records_rejected"]}\n')
+                    f.write(f'kafka_sharegroup_consumer_count{{{labels}}} {m["consumer_count"]}\n')
+    
+    simulator = ShareGroupSimulator()
+    print("Share Group Simulator started...")
+    
+    while True:
+        metrics = simulator.generate_metrics()
+        
+        # Write to JSON file
+        with open('/tmp/sharegroup_metrics.json', 'w') as f:
+            json.dump(metrics, f, indent=2)
+        
+        # Write Prometheus format
+        simulator.write_prometheus_format(metrics)
+        
+        # Sample output
+        sample = random.choice(metrics)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+              f"Group: {sample['group']}, "
+              f"Topic: {sample['topic']}, "
+              f"Unacked: {sample['records_unacked']}, "
+              f"Delay: {sample['oldest_unacked_ms']}ms")
+        
+        time.sleep(15)
+
+  # Admin operations simulator
+  admin-operations.sh: |
+    #!/bin/bash
+    BROKER="kafka-0.kafka:9092"
+    
+    echo "🛠️ Starting admin operations simulator..."
+    
+    while true; do
+        # 1. Partition reassignment simulation
+        if [ $((RANDOM % 100)) -lt 5 ]; then
+            echo "Simulating partition reassignment..."
+            topic="standard-p$(((RANDOM % 5 + 1) * 2))-topic"
+            kafka-reassign-partitions --bootstrap-server $BROKER \
+                --topics-to-move-json-file <(echo "{\"topics\":[{\"topic\":\"$topic\"}],\"version\":1}") \
+                --broker-list "0" --generate 2>/dev/null || true
+        fi
+        
+        # 2. Configuration changes
+        if [ $((RANDOM % 100)) -lt 10 ]; then
+            echo "Changing topic configuration..."
+            topic="retention-$((RANDOM % 3 + 1))00000ms-topic"
+            config_key="retention.ms"
+            config_value=$((RANDOM % 3600000 + 3600000))
+            kafka-configs --bootstrap-server $BROKER \
+                --alter --entity-type topics --entity-name $topic \
+                --add-config $config_key=$config_value 2>/dev/null || true
+        fi
+        
+        # 3. Consumer group operations
+        if [ $((RANDOM % 100)) -lt 20 ]; then
+            echo "Checking consumer group status..."
+            kafka-consumer-groups --bootstrap-server $BROKER --list | \
+            while read group; do
+                kafka-consumer-groups --bootstrap-server $BROKER \
+                    --group $group --describe 2>/dev/null | head -5
+            done
+        fi
+        
+        # 4. ACL operations simulation (even if not enforced)
+        if [ $((RANDOM % 100)) -lt 5 ]; then
+            echo "Simulating ACL operation..."
+            kafka-acls --bootstrap-server $BROKER \
+                --add --allow-principal User:test-user \
+                --operation Read --topic "standard-*" 2>/dev/null || true
+        fi
+        
+        sleep 60
+    done
+
+  # Status reporter
+  status-reporter.sh: |
+    #!/bin/bash
+    BROKER="kafka-0.kafka:9092"
+    
+    echo "=== Kafka Cluster Status ==="
+    echo "Topics: $(kafka-topics --list --bootstrap-server $BROKER 2>/dev/null | wc -l)"
+    echo "Consumer Groups: $(kafka-consumer-groups --list --bootstrap-server $BROKER 2>/dev/null | wc -l)"
+    
+    echo -e "\n=== Top Topics by Messages ==="
+    for topic in $(kafka-topics --list --bootstrap-server $BROKER 2>/dev/null | head -5); do
+        offset=$(kafka-run-class kafka.tools.GetOffsetShell --broker-list $BROKER --topic $topic 2>/dev/null | \
+                 awk -F: '{sum += $3} END {print sum}')
+        echo "$topic: $offset messages"
+    done
+    
+    echo -e "\n=== Consumer Group Lag ==="
+    kafka-consumer-groups --list --bootstrap-server $BROKER 2>/dev/null | head -3 | \
+    while read group; do
+        lag=$(kafka-consumer-groups --bootstrap-server $BROKER --group $group --describe 2>/dev/null | \
+              awk 'NR>1 {sum += $5} END {print sum+0}')
+        echo "$group: $lag total lag"
+    done
+    
+    echo -e "\n=== Metrics Summary ==="
+    if [ -f /tmp/prometheus_metrics.txt ]; then
+        echo "Prometheus metrics: $(wc -l < /tmp/prometheus_metrics.txt) lines"
+    fi
+    if [ -f /tmp/sharegroup_metrics.json ]; then
+        echo "Share group metrics: $(jq length /tmp/sharegroup_metrics.json 2>/dev/null || echo 0) records"
+    fi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-comprehensive-simulator
+  namespace: kafka-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-comprehensive-simulator
+  template:
+    metadata:
+      labels:
+        app: kafka-comprehensive-simulator
+    spec:
+      containers:
+      - name: simulator
+        image: confluentinc/cp-kafka:7.5.0
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            # Create working directory and copy scripts
+            mkdir -p /tmp/simulator
+            cp /scripts/* /tmp/simulator/
+            chmod +x /tmp/simulator/*.sh
+            
+            # Check if python3 is available, if not use python
+            if ! command -v python3 &> /dev/null; then
+                ln -s /usr/bin/python /usr/bin/python3
+            fi
+            
+            # Start the orchestrator
+            exec /tmp/simulator/orchestrator.sh
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: metrics
+          mountPath: /tmp
+        env:
+        - name: KAFKA_HEAP_OPTS
+          value: "-Xmx512M -Xms512M"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: scripts
+        configMap:
+          name: kafka-comprehensive-simulator
+          defaultMode: 0755
+      - name: metrics
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-simulator-metrics
+  namespace: kafka-monitoring
+  labels:
+    app: kafka-comprehensive-simulator
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+  selector:
+    app: kafka-comprehensive-simulator
+  type: ClusterIP

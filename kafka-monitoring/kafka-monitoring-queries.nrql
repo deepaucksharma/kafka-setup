@@ -1,0 +1,108 @@
+# Kafka Monitoring NRQL Queries
+
+## nri-kafka
+
+-- Integration Status
+FROM SystemSample 
+      SELECT uniqueCount(entityName) 
+      WHERE entityName LIKE '%kafka%' 
+      FACET nr.integrationName 
+      SINCE 30 minutes ago
+
+-- Broker Metrics
+FROM KafkaBrokerSample 
+      SELECT count(*), latest(broker.bytesInPerSecond), latest(broker.bytesOutPerSecond) 
+      FACET entityName 
+      SINCE 10 minutes ago
+
+-- Topic Metrics
+FROM KafkaTopicSample 
+      SELECT count(*), uniqueCount(topic), latest(topic.partitions) 
+      FACET topic 
+      SINCE 10 minutes ago
+
+-- Consumer Metrics
+FROM KafkaConsumerSample 
+      SELECT count(*), latest(consumer.lag), latest(consumer.offset) 
+      FACET consumerGroup, topic 
+      SINCE 10 minutes ago
+
+-- All Kafka Event Types
+FROM KafkaBrokerSample, KafkaTopicSample, KafkaConsumerSample, KafkaOffsetSample, KafkaPartitionSample 
+      SELECT count(*) 
+      FACET eventType() 
+      SINCE 30 minutes ago
+
+## nri-flex
+
+-- Flex Integration Status
+FROM IntegrationSample 
+      SELECT latest(timestamp) 
+      WHERE integrationName = 'nri-flex' 
+      FACET entityName 
+      SINCE 10 minutes ago
+
+-- Share Group Metrics
+FROM Metric 
+      SELECT latest(kafka_sharegroup_records_unacked), 
+             latest(kafka_sharegroup_records_acknowledged),
+             latest(kafka_sharegroup_oldest_unacked_ms) 
+      WHERE metricName LIKE 'kafka_sharegroup%' 
+      FACET group, topic, partition 
+      SINCE 10 minutes ago
+
+-- JMX Metrics
+FROM Metric 
+      SELECT count(*), uniqueCount(metricName) 
+      WHERE metricName LIKE 'kafka%' 
+      SINCE 10 minutes ago
+
+-- All Prometheus Metrics
+FROM Metric 
+      SELECT uniqueCount(metricName) as 'Unique Metrics' 
+      WHERE cluster = 'kafka-k8s-cluster' OR job = 'kafka' 
+      SINCE 30 minutes ago
+
+## custom-ohi
+
+-- QueueSample Events
+FROM QueueSample 
+      SELECT count(*), uniqueCount(share.group.name), uniqueCount(topic.name) 
+      WHERE provider = 'kafka' 
+      SINCE 10 minutes ago
+
+-- Share Group Details
+FROM QueueSample 
+      SELECT latest(queue.size), 
+             latest(oldest.message.age.seconds),
+             latest(messages.acknowledged) 
+      WHERE provider = 'kafka' 
+      FACET share.group.name, topic.name 
+      SINCE 10 minutes ago
+
+-- Processing Rates
+FROM QueueSample 
+      SELECT rate(sum(messages.acknowledged), 1 minute) as 'Messages/min' 
+      WHERE provider = 'kafka' 
+      FACET share.group.name 
+      TIMESERIES 1 minute 
+      SINCE 30 minutes ago
+
+## combined
+
+-- Zero Lag Fallacy Check
+FROM KafkaBrokerSample, QueueSample 
+      SELECT latest(consumer.lag) as 'Traditional Lag', 
+             latest(queue.size) as 'Actual Unacked' 
+      WHERE consumer.group.name = share.group.name 
+      FACET consumer.group.name 
+      SINCE 1 hour ago
+
+-- All Kafka Data Sources
+SELECT count(*) 
+      FROM KafkaBrokerSample, KafkaTopicSample, KafkaConsumerSample, 
+           KafkaOffsetSample, KafkaPartitionSample, QueueSample, Metric 
+      WHERE provider = 'kafka' OR clusterName IS NOT NULL OR metricName LIKE 'kafka%' 
+      FACET eventType() 
+      SINCE 1 hour ago
+

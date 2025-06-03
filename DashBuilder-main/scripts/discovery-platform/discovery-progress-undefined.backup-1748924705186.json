@@ -1,0 +1,333 @@
+{
+  "status": "running",
+  "startTime": 1748924075763,
+  "discoveries": {
+    "summary": {},
+    "eventTypes": [
+      {
+        "name": "M",
+        "volume": 329,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": null,
+            "latest": null
+          }
+        }
+      },
+      {
+        "name": "I",
+        "volume": 46,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": null,
+            "latest": null
+          }
+        }
+      },
+      {
+        "name": "S",
+        "volume": 39,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": null,
+            "latest": null
+          }
+        }
+      },
+      {
+        "name": "Entity",
+        "volume": 0,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 4,
+            "sampleValues": [
+              "VIZ-DASHBOARD",
+              "EXT-SERVICE",
+              "INFRA-HOST",
+              "SECURITY_FINDING"
+            ],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          },
+          {
+            "key": null,
+            "timestamp": 1748923200000,
+            "type": "SECURITY_FINDING"
+          }
+        ],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": 1748322000000,
+            "latest": 1748923200000
+          }
+        }
+      },
+      {
+        "name": "EntityAudits",
+        "volume": 0,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [
+          {
+            "key": null,
+            "timestamp": 1748923189160,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923189152,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923189058,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923189047,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923189032,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923188994,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923188710,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923188709,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923188560,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748923188547,
+            "type": null
+          }
+        ],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": 1748414554208,
+            "latest": 1748923189160
+          }
+        }
+      },
+      {
+        "name": "InfrastructureEvent",
+        "volume": 0,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [
+          {
+            "key": null,
+            "timestamp": 1748923144000,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748922484000,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748922063000,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748921494000,
+            "type": null
+          },
+          {
+            "key": null,
+            "timestamp": 1748921072000,
+            "type": null
+          }
+        ],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": 1748885769000,
+            "latest": 1748923144000
+          }
+        }
+      }
+    ],
+    "metrics": [],
+    "traces": [],
+    "logs": [],
+    "customEvents": [],
+    "relationships": [],
+    "attributes": {},
+    "queries": [],
+    "insights": []
+  },
+  "statistics": {
+    "queriesExecuted": 152,
+    "queriesFailed": 0,
+    "cacheHits": 0,
+    "dataPointsDiscovered": 12,
+    "processingTime": 0
+  },
+  "timestamp": 1748924590545,
+  "version": "1.0.0"
+}

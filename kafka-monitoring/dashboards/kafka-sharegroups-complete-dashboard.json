@@ -1,0 +1,682 @@
+{
+  "name": "Kafka Share Groups Complete Monitoring",
+  "description": "Comprehensive dashboard showing all metrics from Kafka Share Groups monitoring setup",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Overview",
+      "description": "High-level view of Kafka cluster and Share Groups",
+      "guid": null,
+      "widgets": [
+        {
+          "title": "Cluster Health Status",
+          "configuration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT latest(up) as 'Kafka Broker', latest(kafka_server_replicamanager_leadercount) as 'Leader Partitions', latest(kafka_server_replicamanager_partitioncount) as 'Total Partitions' FROM Metric WHERE cluster = '${KAFKA_CLUSTER_NAME}' SINCE 5 minutes ago"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.billboard"
+          }
+        },
+        {
+          "title": "Share Groups vs Traditional Groups",
+          "configuration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT uniqueCount(share.group.name) as 'Share Groups', uniqueCount(consumerGroup) as 'Traditional Groups' FROM QueueSample, KafkaBrokerSample WHERE provider = 'kafka' OR clusterName = '${KAFKA_CLUSTER_NAME}' SINCE 1 hour ago"
+              }
+            ]
+          },
+          "layout": {
+            "column": 5,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.billboard"
+          }
+        },
+        {
+          "title": "Total Message Backlog",
+          "configuration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT sum(queue.size) as 'Unacked Messages (Share Groups)', sum(consumer.lag) as 'Traditional Lag' FROM QueueSample, KafkaBrokerSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' OR clusterName = '${KAFKA_CLUSTER_NAME}' SINCE 5 minutes ago"
+              }
+            ]
+          },
+          "layout": {
+            "column": 9,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.billboard"
+          }
+        },
+        {
+          "title": "Message Processing Timeline",
+          "configuration": {
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT sum(queue.size) as 'Unacked Messages', rate(sum(messages.acknowledged), 1 minute) as 'Ack Rate/min', rate(sum(messages.released), 1 minute) as 'Release Rate/min' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' TIMESERIES AUTO"
+              }
+            ],
+            "yAxisLeft": {
+              "zero": true
+            }
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Share Group Details",
+      "description": "Detailed metrics for Kafka Share Groups",
+      "widgets": [
+        {
+          "title": "Unacknowledged Messages by Share Group",
+          "configuration": {
+            "facet": {
+              "showOtherSeries": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT latest(queue.size) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name LIMIT 20"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.bar"
+          }
+        },
+        {
+          "title": "Oldest Message Age by Share Group",
+          "configuration": {
+            "facet": {
+              "showOtherSeries": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT max(oldest.message.age.seconds) as 'Age (seconds)' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name LIMIT 20"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.bar"
+          }
+        },
+        {
+          "title": "Share Group Processing Rates",
+          "configuration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT rate(sum(messages.acknowledged), 1 minute) as 'Messages/min' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name TIMESERIES AUTO"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Message States Distribution",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT sum(kafka_sharegroup_records_unacked) as 'Unacked', sum(kafka_sharegroup_records_acknowledged) as 'Acknowledged', sum(kafka_sharegroup_records_released) as 'Released', sum(kafka_sharegroup_records_rejected) as 'Rejected' FROM Metric WHERE cluster = '${KAFKA_CLUSTER_NAME}' FACET group SINCE 30 minutes ago"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.stacked-bar"
+          }
+        },
+        {
+          "title": "Share Group Partition Distribution",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT latest(queue.size) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name, topic.name, partition.id LIMIT 100"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.heatmap"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Traditional vs Share Groups",
+      "description": "Comparison of traditional consumer groups and share groups",
+      "widgets": [
+        {
+          "title": "Zero Lag Fallacy Detection",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT latest(consumer.lag) as 'Traditional Lag', latest(queue.size) as 'Actual Unacked' FROM KafkaBrokerSample, QueueSample WHERE clusterName = '${KAFKA_CLUSTER_NAME}' AND cluster.name = '${KAFKA_CLUSTER_NAME}' AND consumer.group.name = share.group.name FACET consumer.group.name"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.table"
+          }
+        },
+        {
+          "title": "Traditional Consumer Lag",
+          "configuration": {
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT average(consumer.lag) FROM KafkaBrokerSample WHERE clusterName = '${KAFKA_CLUSTER_NAME}' FACET consumerGroup, topic TIMESERIES AUTO"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Share Group Unacked Messages",
+          "configuration": {
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT average(queue.size) FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name, topic.name TIMESERIES AUTO"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Processing Delay Comparison",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT percentile(oldest.message.age.seconds, 95) as 'P95 Share Group Delay', percentile(consumer.lag / 1000, 95) as 'P95 Traditional Lag (est)' FROM QueueSample, KafkaBrokerSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' OR clusterName = '${KAFKA_CLUSTER_NAME}' TIMESERIES AUTO"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Broker Metrics",
+      "description": "Traditional Kafka broker metrics from nri-kafka",
+      "widgets": [
+        {
+          "title": "Broker Network Throughput",
+          "configuration": {
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT average(broker.bytesInPerSecond) as 'Bytes In/sec', average(broker.bytesOutPerSecond) as 'Bytes Out/sec' FROM KafkaBrokerSample WHERE clusterName = '${KAFKA_CLUSTER_NAME}' TIMESERIES AUTO"
+              }
+            ],
+            "units": {
+              "unit": "BYTES_PER_SECOND"
+            }
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Request Rates",
+          "configuration": {
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT average(broker.produceRequestsPerSecond) as 'Produce/sec', average(broker.fetchConsumerRequestsPerSecond) as 'Fetch/sec' FROM KafkaBrokerSample WHERE clusterName = '${KAFKA_CLUSTER_NAME}' TIMESERIES AUTO"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Partition Status",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT latest(kafka_server_replicamanager_leadercount) as 'Leader Partitions', latest(kafka_server_replicamanager_partitioncount) as 'Total Partitions', latest(kafka_controller_controllerstats_uncleanleaderelectionspersec) as 'Unclean Elections' FROM Metric WHERE cluster = '${KAFKA_CLUSTER_NAME}' FACET host LIMIT 20"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.table"
+          }
+        },
+        {
+          "title": "JVM Memory Usage",
+          "configuration": {
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT average(jvm_memory_bytes_used) / 1024 / 1024 as 'Memory Used (MB)' FROM Metric WHERE cluster = '${KAFKA_CLUSTER_NAME}' AND job = 'kafka' FACET area TIMESERIES AUTO"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.area"
+          }
+        },
+        {
+          "title": "Topic Metrics",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT latest(topic.messagesInPerSecond) as 'Messages In/sec', latest(topic.bytesInPerSecond) as 'Bytes In/sec', latest(topic.bytesOutPerSecond) as 'Bytes Out/sec' FROM KafkaTopicSample WHERE clusterName = '${KAFKA_CLUSTER_NAME}' FACET topic LIMIT 20"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Infrastructure & OHI",
+      "description": "New Relic Infrastructure and Custom OHI metrics",
+      "widgets": [
+        {
+          "title": "Custom OHI Execution Status",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT count(*) as 'OHI Executions' FROM Log WHERE message LIKE '%kafka-sharegroup-ohi%' FACET message SINCE 1 hour ago TIMESERIES 5 minutes"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "QueueSample Event Generation",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT count(*) as 'Events/min' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' TIMESERIES 1 minute SINCE 1 hour ago"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Infrastructure Agent Health",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT latest(timestamp) as 'Last Seen' FROM SystemSample WHERE hostname LIKE '%kafka%' OR hostname LIKE '%sharegroup%' FACET hostname SINCE 1 hour ago"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.table"
+          }
+        },
+        {
+          "title": "Prometheus Scrape Metrics",
+          "configuration": {
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT count(*) as 'Metrics Scraped' FROM Metric WHERE cluster = '${KAFKA_CLUSTER_NAME}' AND metricName LIKE 'kafka_sharegroup%' FACET metricName TIMESERIES AUTO"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Integration Errors",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT count(*) FROM IntegrationError WHERE category = 'kafka' OR message LIKE '%kafka%' OR message LIKE '%sharegroup%' FACET message SINCE 1 hour ago"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.bar"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alerts & Thresholds",
+      "description": "Alert conditions and threshold monitoring",
+      "widgets": [
+        {
+          "title": "Alert Threshold: Unacknowledged Messages",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT sum(queue.size) as 'Current', 500 as 'Warning', 1000 as 'Critical' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name"
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 500,
+                "severity": "WARNING"
+              },
+              {
+                "value": 1000,
+                "severity": "CRITICAL"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.billboard"
+          }
+        },
+        {
+          "title": "Alert Threshold: Message Age",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT max(oldest.message.age.seconds) as 'Current Age', 120 as 'Warning', 300 as 'Critical' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name"
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 120,
+                "severity": "WARNING"
+              },
+              {
+                "value": 300,
+                "severity": "CRITICAL"
+              }
+            ]
+          },
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.billboard"
+          }
+        },
+        {
+          "title": "Processing Rate Alert Status",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT rate(sum(messages.acknowledged), 1 minute) as 'Current Rate', 0 as 'Critical (Stalled)' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' FACET share.group.name TIMESERIES AUTO"
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 0,
+                "severity": "CRITICAL"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.line"
+          }
+        },
+        {
+          "title": "Alert Summary",
+          "configuration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [],
+                "query": "SELECT filter(sum(queue.size), WHERE queue.size > 1000) as 'Critical: High Backlog', filter(max(oldest.message.age.seconds), WHERE oldest.message.age.seconds > 300) as 'Critical: Old Messages', filter(count(*), WHERE rate(sum(messages.acknowledged), 1 minute) = 0) as 'Critical: Stalled Processing' FROM QueueSample WHERE provider = 'kafka' AND cluster.name = '${KAFKA_CLUSTER_NAME}' SINCE 5 minutes ago"
+              }
+            ]
+          },
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": {
+            "id": "viz.billboard"
+          }
+        }
+      ]
+    }
+  ],
+  "variables": [
+    {
+      "defaultValues": [
+        {
+          "value": {
+            "string": "kafka-k8s-cluster"
+          }
+        }
+      ],
+      "name": "KAFKA_CLUSTER_NAME",
+      "options": {
+        "ignoreTimeRange": false
+      },
+      "title": "Kafka Cluster Name",
+      "type": "NRQL",
+      "nrqlQuery": {
+        "accountIds": [],
+        "query": "SELECT uniques(cluster.name) FROM QueueSample WHERE provider = 'kafka' SINCE 1 day ago"
+      }
+    }
+  ]
+}

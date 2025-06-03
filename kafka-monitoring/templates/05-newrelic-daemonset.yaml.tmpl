@@ -69,16 +69,16 @@ spec:
           name: newrelic-flex-config
       - name: custom-ohi-definition
         configMap:
-          name: custom-ohi-sharegroup
+          name: custom-ohi-definition
           items:
-          - key: sharegroup-ohi-definition.yaml
+          - key: kafka-sharegroup-definition.yml
             path: sharegroup-ohi-definition.yaml
       - name: custom-ohi-script
         configMap:
-          name: custom-ohi-sharegroup
+          name: custom-ohi-scripts
           defaultMode: 0755
           items:
-          - key: sharegroup-ohi.py
+          - key: kafka-sharegroup-ohi.py
             path: sharegroup-ohi.py
 ---
 apiVersion: v1

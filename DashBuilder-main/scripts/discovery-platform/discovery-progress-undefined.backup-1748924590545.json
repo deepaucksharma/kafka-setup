@@ -1,0 +1,84 @@
+{
+  "status": "running",
+  "startTime": 1748924075763,
+  "discoveries": {
+    "summary": {},
+    "eventTypes": [
+      {
+        "name": "M",
+        "volume": 329,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": null,
+            "latest": null
+          }
+        }
+      },
+      {
+        "name": "I",
+        "volume": 46,
+        "attributes": {
+          "type": {
+            "type": "string",
+            "dataType": "enum",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          },
+          "key": {
+            "type": "string",
+            "dataType": "string",
+            "cardinality": 0,
+            "sampleValues": [],
+            "nullable": false
+          }
+        },
+        "sampleData": [],
+        "metadata": {
+          "entityCount": 0,
+          "hostCount": 0,
+          "dataRange": {
+            "earliest": null,
+            "latest": null
+          }
+        }
+      }
+    ],
+    "metrics": [],
+    "traces": [],
+    "logs": [],
+    "customEvents": [],
+    "relationships": [],
+    "attributes": {},
+    "queries": [],
+    "insights": []
+  },
+  "statistics": {
+    "queriesExecuted": 120,
+    "queriesFailed": 0,
+    "cacheHits": 0,
+    "dataPointsDiscovered": 4,
+    "processingTime": 0
+  },
+  "timestamp": 1748924500544,
+  "version": "1.0.0"
+}

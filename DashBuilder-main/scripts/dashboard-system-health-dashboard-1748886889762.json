@@ -1,0 +1,93 @@
+{
+  "name": "System Health Dashboard - 2025-06-02",
+  "description": "Created with Quick Dashboard tool",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Main",
+      "description": "Dashboard metrics",
+      "widgets": [
+        {
+          "title": "CPU Usage",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT average(cpuPercent) FROM SystemSample TIMESERIES"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Memory Usage",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 5,
+            "row": 1,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT average(memoryUsedPercent) FROM SystemSample TIMESERIES"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Host Count",
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "layout": {
+            "column": 9,
+            "row": 1,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT uniqueCount(hostname) FROM SystemSample"
+              }
+            ]
+          }
+        },
+        {
+          "title": "CPU by Host",
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "height": 3,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": 3630072,
+                "query": "SELECT average(cpuPercent) FROM SystemSample FACET hostname"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

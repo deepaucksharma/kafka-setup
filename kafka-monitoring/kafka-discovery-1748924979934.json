@@ -1,0 +1,105 @@
+{
+  "timestamp": "2025-06-03T04:29:26.446Z",
+  "accountId": "3630072",
+  "mechanisms": {
+    "nri-kafka": {
+      "Integration Status": {
+        "hasData": false,
+        "resultCount": 0
+      },
+      "Broker Metrics": {
+        "hasData": true,
+        "resultCount": 1,
+        "sample": {
+          "facet": "broker:kafka-0.kafka:9092",
+          "count": 3,
+          "entityName": "broker:kafka-0.kafka:9092",
+          "latest.broker.bytesInPerSecond": null,
+          "latest.broker.bytesOutPerSecond": null
+        }
+      },
+      "Topic Metrics": {
+        "hasData": false,
+        "resultCount": 0
+      },
+      "Consumer Metrics": {
+        "hasData": false,
+        "resultCount": 0
+      },
+      "All Kafka Event Types": {
+        "hasData": true,
+        "resultCount": 1,
+        "sample": {
+          "facet": "KafkaBrokerSample",
+          "count": 3,
+          "eventType()": "KafkaBrokerSample"
+        }
+      }
+    },
+    "nri-flex": {
+      "Flex Integration Status": {
+        "hasData": false,
+        "resultCount": 0
+      },
+      "Share Group Metrics": {
+        "hasData": false,
+        "resultCount": 0
+      },
+      "JMX Metrics": {
+        "hasData": true,
+        "resultCount": 1,
+        "sample": {
+          "count": 0,
+          "uniqueCount.metricName": 0
+        }
+      },
+      "All Prometheus Metrics": {
+        "hasData": true,
+        "resultCount": 1,
+        "sample": {
+          "Unique Metrics": 0
+        }
+      }
+    },
+    "custom-ohi": {
+      "QueueSample Events": {
+        "hasData": true,
+        "resultCount": 1,
+        "sample": {
+          "count": 0,
+          "uniqueCount.share.group.name": 0,
+          "uniqueCount.topic.name": 0
+        }
+      },
+      "Share Group Details": {
+        "hasData": false,
+        "resultCount": 0
+      },
+      "Processing Rates": {
+        "hasData": false,
+        "resultCount": 0
+      }
+    },
+    "combined": {
+      "Zero Lag Fallacy Check": {
+        "hasData": false,
+        "resultCount": 0
+      },
+      "All Kafka Data Sources": {
+        "hasData": true,
+        "resultCount": 1,
+        "sample": {
+          "facet": "KafkaBrokerSample",
+          "count": 3,
+          "eventType()": "KafkaBrokerSample"
+        }
+      }
+    }
+  },
+  "summary": {
+    "totalQueries": 14,
+    "successfulQueries": 6,
+    "dataFound": {},
+    "recommendations": []
+  }
+}
